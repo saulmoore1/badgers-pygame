@@ -52,11 +52,43 @@ FONT_COLOUR = (64,64,64) # rgb colour
 #%% Functions
 
 class Game():
-    def __init__(self):
+    def __init__(self, title, width, height):
         super().__init__()
+        pygame.display.set_caption(title)
+        self.surface = pygame.display.set_mode((width, height))
+        self.rect = self.surface.get_rect()
+        self.clock = pygame.time.Clock()
         self.active = False
+        self.delta = 0
+        self.fps = 60
+        #self.background
+        
+        #self.player
+        #self.enemies
+        
+    def draw(self):
+        # self.surface.fill(self.background)
+        pass
     
-    def update():
+    def mainloop(self):
+        self.active = True
+        while self.active:
+            # event loop
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self.active = False
+                    
+            self.update()
+            self.draw()
+            pygame.display.flip()
+            
+            # delta time for smooth movement
+            self.delta = self.clock.tick(self.fps) * 0.001
+
+    def update(self):
+        #self.player.bound_check
+        #enemies
+        #collisions
         pass
 
 class Player(pygame.sprite.Sprite):
@@ -414,5 +446,16 @@ while True:
 
     # update everything
     pygame.display.update()
+    
+    # Delta time for smooth movement
     clock.tick(MAX_FRAME_RATE)
+     
+#%%
+
+# if __name__ == "__main__":
+#     pygame.init()
+#     game = Game("Badgers!", WIDTH, HEIGHT)
+#     game.mainloop()
+#     pygame.quit()
+
     
