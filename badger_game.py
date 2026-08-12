@@ -55,41 +55,132 @@ class Game():
     def __init__(self, title, width, height):
         super().__init__()
         pygame.display.set_caption(title)
-        self.surface = pygame.display.set_mode((width, height))
-        self.rect = self.surface.get_rect()
+        self.screen = pygame.display.set_mode((width, height))
+        self.rect = self.screen.get_rect()
         self.clock = pygame.time.Clock()
         self.active = False
         self.delta = 0
         self.fps = 60
+        self.start_time = 0
+        self.game_time = 0
         #self.background
         
-        #self.player
-        #self.enemies
+        self.player = pygame.sprite.GroupSingle()
+        self.enemies = pygame.sprite.Group()
+        self.ground_grid = Ground() # initialise ground grid
         
     def draw(self):
         # self.surface.fill(self.background)
         pass
     
-    def mainloop(self):
-        self.active = True
-        while self.active:
+    def run(self):
+        while True:
             # event loop
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
-                    self.active = False
+                    pygame.QUIT
+                    sys.exit()
+
+                # if event.type == pygame.MOUSEMOTION:
+                #     if player.sprite.rect.collidepoint(event.pos):
+                #         print("Hovering over badger")
+                #     for enemy in pygame.sprite.Group.sprites(enemies):
+                #         if enemy.rect.collidepoint(event.pos):
+                #             print("Hovering over enemy")
+            
+                if not self.active: # start/restart game screen
+                    if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+                        self.active = True #press space to play game 
+    
+                        # initialise player and enemy sprite groups
+                        # create instance of Player class in GroupSingle
+                        # NB: enemies can be grouped together but the player needs to be in its own group
+                        # so you can check for collisions (cannot check collisions between members of same group)
+                        self.player.add(Player())
+                        
+                        self.start_time = int(pygame.time.get_ticks() / 1000)
+                
+                elif self.active:
+                    if event.type == enemy_timer:
+                        # spawn enemies if there are 5 or fewer enemies already spawned
+                        if len(self.enemies) < MAX_ENEMIES:
+                            # choose from list of types of enemy to spawn
+                            self.enemies.add(Enemy(choice(['badger'])))
+                        
+                        # update timer with new random spawn time
+                        pygame.time.set_timer(enemy_timer, randint(5000,10000))
                     
+                    if event.type == pygame.KEYDOWN and event.key == pygame.K_d:
+                        player_dig()
+            
+            # game
+            if self.active:
+                
+                # draw sky + ground as rectangles on screen: [left, top, width, height]
+                pygame.draw.rect(self.screen, 'skyblue3', [0,0,WIDTH,GROUND]) # sky
+                pygame.draw.rect(self.screen, 'darkorange1', [0,GROUND,WIDTH,HEIGHT-GROUND]) # ground
+                # TODO: create ground and sky surface from images instead
+                
+                # draw + update grid
+                self.ground_grid.draw_grid()
+                
+                self.screen.blit(title_text_surf, title_text_rect) # blit = block image transfer
+                self.game_time = display_time(self.start_time)
+                        
+                # draw + update player and enemy sprites
+                self.player.draw(self.screen)
+                self.player.update()
+                self.enemies.draw(self.screen)
+                self.enemies.update()
+                
+                # check collisions
+                collision_sprite()
+                                    
+                # display player health + check if 0 health -> end game
+                health_left = self.player.sprite.health
+                display_health(health_left)
+                if health_left <= 0:
+                    self.active = False
+                
+                # update delay period after taking damage or colliding
+                if self.player.sprite.damage_delay_period > 0:
+                    self.player.sprite.damage_delay_period -= 1
+                for enemy in pygame.sprite.Group.sprites(self.enemies):
+                    if enemy.collision_delay_period > 0:
+                        enemy.collision_delay_period -= 1
+  
+            # intro screen if game is not active
+            elif not self.active:
+                self.screen.fill("springgreen3")
+                self.screen.blit(title_text_surf, title_text_rect)
+                self.screen.blit(badger_stand_surf, badger_stand_rect)
+                
+                if self.game_time == 0:
+                    # not started game yet
+                    self.screen.blit(start_text_surf, start_text_rect)
+                    
+                else:            
+                    # if game has been played
+                    total_time_surf = stats_font.render(f'Time (s): {self.game_time}',False,FONT_COLOUR)
+                    total_time_rect = total_time_surf.get_rect(bottomleft=(WIDTH-250,80))
+                    self.screen.blit(total_time_surf, total_time_rect)
+                    self.screen.blit(dead_text_surf, dead_text_rect)
+                    self.screen.blit(restart_text_surf, restart_text_rect)
+                    
+                    # reset player + spawned enemies
+                    self.player.empty()
+                    self.enemies.empty()
+
             self.update()
-            self.draw()
-            pygame.display.flip()
+            #self.draw()
+            #pygame.display.flip()
             
             # delta time for smooth movement
-            self.delta = self.clock.tick(self.fps) * 0.001
+            # self.delta = self.clock.tick(self.fps) * 0.001
 
     def update(self):
-        #self.player.bound_check
-        #enemies
-        #collisions
-        pass
+        pygame.display.update()
+        self.clock.tick(self.fps)
 
 class Player(pygame.sprite.Sprite):
     def __init__(self):
@@ -211,27 +302,27 @@ class Enemy(pygame.sprite.Sprite):
         # self.destroy()
         
 def collision_sprite():
-    for enemy in pygame.sprite.Group.sprites(enemy_group):
-        # pygame.sprite.spritecollide(player.sprite, enemy_group, False)
-        if pygame.sprite.collide_mask(enemy, player.sprite):
+    for enemy in pygame.sprite.Group.sprites(game.enemies):
+        # pygame.sprite.spritecollide(player.sprite, enemies, False)
+        if pygame.sprite.collide_mask(enemy, game.player.sprite):
             if enemy.collision_delay_period <= 0:
                 enemy.direction *= -1
-                if player.sprite.damage_delay_period <= 0:
-                    player.sprite.health -= 1
-                    player.sprite.damage_delay_period = DAMAGE_DELAY
+                if game.player.sprite.damage_delay_period <= 0:
+                    game.player.sprite.health -= 1
+                    game.player.sprite.damage_delay_period = DAMAGE_DELAY
             enemy.collision_delay_period = COLLISION_DELAY
             
 def player_dig():
     delta = math.ceil(PLAYER_SPEED / 10.0) * 10
-    if player.sprite.rect.bottom >= GROUND:
+    if game.player.sprite.rect.bottom >= GROUND:
         keys = pygame.key.get_pressed()
         if keys[pygame.K_DOWN]: # FIXME: Dig until key released (while KEYDOWN?)
-            x_left = math.floor(player.sprite.rect.bottomleft[0] / 10.0) * 10
-            x_right = math.ceil(player.sprite.rect.bottomright[0] / 10.0) * 10
-            y_bottom = math.floor((player.sprite.rect.bottom - GROUND) / 10.0) * 10
+            x_left = math.floor(game.player.sprite.rect.bottomleft[0] / 10.0) * 10
+            x_right = math.ceil(game.player.sprite.rect.bottomright[0] / 10.0) * 10
+            y_bottom = math.floor((game.player.sprite.rect.bottom - GROUND) / 10.0) * 10
             
-            ground_grid.grid[x_left // TILE_SIZE : x_right // TILE_SIZE,
-                             y_bottom // TILE_SIZE : (y_bottom + delta) // TILE_SIZE] = 0
+            game.ground_grid.grid[x_left // TILE_SIZE : x_right // TILE_SIZE,
+                                  y_bottom // TILE_SIZE : (y_bottom + delta) // TILE_SIZE] = 0
         # TODO: Dig left, right, up        
         #player.sprite.direction
     
@@ -240,13 +331,13 @@ def display_time(start_time):
     game_time = int(pygame.time.get_ticks() / 1000) - start_time
     time_surf = stats_font.render(f'Time (s): {game_time}',False,(64,64,64))
     time_rect = time_surf.get_rect(bottomleft=(WIDTH-250,80))
-    screen.blit(time_surf, time_rect)
+    game.screen.blit(time_surf, time_rect)
     return game_time
 
 def display_health(health_left):
     health_surf = stats_font.render(f'Health: {health_left}',False,(64,64,64))
     health_rect = health_surf.get_rect(bottomleft=(WIDTH-250,140))
-    screen.blit(health_surf, health_rect)
+    game.screen.blit(health_surf, health_rect)
     
 class Ground():
     def __init__(self):
@@ -263,7 +354,7 @@ class Ground():
         for i, x in enumerate(range(0, WIDTH, TILE_SIZE)):
             for j, y in enumerate(range(0, int(HEIGHT-GROUND), TILE_SIZE)):
                 if self.grid[i,j] == 1:
-                    pygame.draw.rect(screen, self.colour, 
+                    pygame.draw.rect(game.screen, self.colour, 
                                      [x, y+GROUND, TILE_SIZE, TILE_SIZE])
 
 #%% Main game params
@@ -330,132 +421,129 @@ pygame.time.set_timer(enemy_animation_timer, 15)
 
 #%% Event loop
 
-game_active = False # start on intro screen
-start_time = 0
-game_time = 0
+# game_active = False # start on intro screen
+# start_time = 0
+# game_time = 0
 
-while True:
+# while True:
     
-    # event loop
-    for event in pygame.event.get():
+#     # event loop
+#     for event in pygame.event.get():
         
-        # check when player closes the game + exit
-        if event.type == pygame.QUIT:
-            pygame.quit()
-            sys.exit() # alternatively: raise SystemExit
+#         # check when player closes the game + exit
+#         if event.type == pygame.QUIT:
+#             pygame.quit()
+#             sys.exit() # alternatively: raise SystemExit
                         
-        if not game_active: # if game_active == False, start/restart game
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
-                    game_active = True
+#         if not game_active: # if game_active == False, start/restart game
+#             if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+#                     game_active = True
 
-                    # initialise player and enemy sprite groups
-                    # create instance of Player class in GroupSingle
-                    # NB: enemies can be grouped together but the player needs to be in its own group
-                    # so you can check for collisions (cannot check collisions between members of same group)
-                    player = pygame.sprite.GroupSingle()
-                    player.add(Player())
-                    enemy_group = pygame.sprite.Group()
+#                     # initialise player and enemy sprite groups
+#                     # create instance of Player class in GroupSingle
+#                     # NB: enemies can be grouped together but the player needs to be in its own group
+#                     # so you can check for collisions (cannot check collisions between members of same group)
+#                     player = pygame.sprite.GroupSingle()
+#                     player.add(Player())
+#                     enemies = pygame.sprite.Group()
                     
-                    # initialise ground grid
-                    ground_grid = Ground()
-                    #ground_grid.grid[1:10,1:10] = 0
+#                     # initialise ground grid
+#                     ground_grid = Ground()
+#                     #ground_grid.grid[1:10,1:10] = 0
                     
-                    start_time = int(pygame.time.get_ticks() / 1000)
+#                     start_time = int(pygame.time.get_ticks() / 1000)
                     
-        else:
-            # if event.type == pygame.MOUSEMOTION:
-            #     if player.sprite.rect.collidepoint(event.pos):
-            #         print("Hovering over badger")
-            #     for enemy in pygame.sprite.Group.sprites(enemy_group):
-            #         if enemy.rect.collidepoint(event.pos):
-            #             print("Hovering over enemy")
+#         else:
+#             # if event.type == pygame.MOUSEMOTION:
+#             #     if player.sprite.rect.collidepoint(event.pos):
+#             #         print("Hovering over badger")
+#             #     for enemy in pygame.sprite.Group.sprites(enemies):
+#             #         if enemy.rect.collidepoint(event.pos):
+#             #             print("Hovering over enemy")
                 
-            if event.type == enemy_timer:
-                # spawn enemies if there are 5 or fewer enemies already spawned
-                if len(enemy_group) < MAX_ENEMIES:
-                    # choose from list of types of enemy to spawn
-                    enemy_group.add(Enemy(choice(['badger'])))
+#             if event.type == enemy_timer:
+#                 # spawn enemies if there are 5 or fewer enemies already spawned
+#                 if len(enemies) < MAX_ENEMIES:
+#                     # choose from list of types of enemy to spawn
+#                     enemies.add(Enemy(choice(['badger'])))
                 
-                # update timer with new random spawn time
-                pygame.time.set_timer(enemy_timer, randint(5000,10000))
+#                 # update timer with new random spawn time
+#                 pygame.time.set_timer(enemy_timer, randint(5000,10000))
             
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_d:
-                player_dig()
-                                                        
-    #%% Game 
+#             if event.type == pygame.KEYDOWN and event.key == pygame.K_d:
+#                 player_dig()
     
-    if game_active:
+#     if game_active:
         
-        # draw sky + ground as rectangles on screen: [left, top, width, height]
-        sky = pygame.draw.rect(screen, 'skyblue3', [0,0,WIDTH,GROUND])
-        ground = pygame.draw.rect(screen, 'darkorange1', [0,GROUND,WIDTH,HEIGHT-GROUND])
-        # TODO: create ground and sky surface from images instead
+#         # draw sky + ground as rectangles on screen: [left, top, width, height]
+#         sky = pygame.draw.rect(screen, 'skyblue3', [0,0,WIDTH,GROUND])
+#         ground = pygame.draw.rect(screen, 'darkorange1', [0,GROUND,WIDTH,HEIGHT-GROUND])
+#         # TODO: create ground and sky surface from images instead
         
-        # draw + update grid
-        ground_grid.draw_grid()
+#         # draw + update grid
+#         ground_grid.draw_grid()
         
-        screen.blit(title_text_surf, title_text_rect) # blit = block image transfer
-        game_time = display_time(start_time)
+#         screen.blit(title_text_surf, title_text_rect) # blit = block image transfer
+#         game_time = display_time(start_time)
                 
-        # draw + update player and enemy sprites
-        player.draw(screen)
-        player.update()
-        enemy_group.draw(screen)
-        enemy_group.update()
+#         # draw + update player and enemy sprites
+#         player.draw(screen)
+#         player.update()
+#         enemies.draw(screen)
+#         enemies.update()
         
-        # check collisions
-        collision_sprite()
+#         # check collisions
+#         collision_sprite()
                             
-        # display player health + check if 0 health -> end game
-        health_left = player.sprite.health
-        display_health(health_left)
-        if health_left <= 0:
-            game_active = False
+#         # display player health + check if 0 health -> end game
+#         health_left = player.sprite.health
+#         display_health(health_left)
+#         if health_left <= 0:
+#             game_active = False
         
-        # update delay period after taking damage or colliding
-        if player.sprite.damage_delay_period > 0:
-            player.sprite.damage_delay_period -= 1
-        for enemy in pygame.sprite.Group.sprites(enemy_group):
-            if enemy.collision_delay_period > 0:
-                enemy.collision_delay_period -= 1
+#         # update delay period after taking damage or colliding
+#         if player.sprite.damage_delay_period > 0:
+#             player.sprite.damage_delay_period -= 1
+#         for enemy in pygame.sprite.Group.sprites(enemies):
+#             if enemy.collision_delay_period > 0:
+#                 enemy.collision_delay_period -= 1
                 
-    #%% Intro
+#     #%% Intro
                 
-    else: # intro screen if game_active == False
-        screen.fill("springgreen3")
-        screen.blit(title_text_surf, title_text_rect)
-        screen.blit(badger_stand_surf, badger_stand_rect)
+#     else: # intro screen if game_active == False
+#         screen.fill("springgreen3")
+#         screen.blit(title_text_surf, title_text_rect)
+#         screen.blit(badger_stand_surf, badger_stand_rect)
         
-        if game_time == 0:
-            # not started game yet
-            screen.blit(start_text_surf, start_text_rect)
+#         if game_time == 0:
+#             # not started game yet
+#             screen.blit(start_text_surf, start_text_rect)
             
-        else:            
-            # if game has been played
-            total_time_surf = stats_font.render(f'Time (s): {game_time}',False,FONT_COLOUR)
-            total_time_rect = total_time_surf.get_rect(bottomleft=(WIDTH-250,80))
-            screen.blit(total_time_surf, total_time_rect)
-            screen.blit(dead_text_surf, dead_text_rect)
-            screen.blit(restart_text_surf, restart_text_rect)
+#         else:            
+#             # if game has been played
+#             total_time_surf = stats_font.render(f'Time (s): {game_time}',False,FONT_COLOUR)
+#             total_time_rect = total_time_surf.get_rect(bottomleft=(WIDTH-250,80))
+#             screen.blit(total_time_surf, total_time_rect)
+#             screen.blit(dead_text_surf, dead_text_rect)
+#             screen.blit(restart_text_surf, restart_text_rect)
             
-            # reset player + spawned enemies
-            player.empty()
-            enemy_group.empty()
+#             # reset player + spawned enemies
+#             player.empty()
+#             enemies.empty()
             
-            # reset ground grid on new game # TODO
+#             # reset ground grid on new game # TODO
 
-    # update everything
-    pygame.display.update()
+#     # update everything
+#     pygame.display.update()
     
-    # Delta time for smooth movement
-    clock.tick(MAX_FRAME_RATE)
+#     # Delta time for smooth movement
+#     clock.tick(MAX_FRAME_RATE)
      
 #%%
 
-# if __name__ == "__main__":
-#     pygame.init()
-#     game = Game("Badgers!", WIDTH, HEIGHT)
-#     game.mainloop()
-#     pygame.quit()
+if __name__ == "__main__":
+    pygame.init()
+    game = Game("Badgers!", WIDTH, HEIGHT)
+    game.run()
 
     
