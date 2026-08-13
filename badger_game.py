@@ -22,32 +22,7 @@ import math
 
 #%% Globals
 
-# game params
-WIDTH = 1200 # game screen width, height (in pixels)
-HEIGHT = 800
-GROUND = int(0.6 * HEIGHT)
-MAX_FRAME_RATE = 60
-SCALE_IMAGE = 0.05
-
-ENEMY_SPEED = 4
-MAX_ENEMIES = 5
-
-PLAYER_SPEED = 4
-JUMP_HEIGHT = 20
-PLAYER_HEALTH = 5
-DAMAGE_DELAY = 0 #15 # n frames after damage before able to take damage again
-COLLISION_DELAY = 5 # n frame after collision before recording another collision
-
-TILE_SIZE = 10
-
 DIRPATH = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-badger_walk_dir = DIRPATH + '/graphics/badger/walk/'
-badger_jump_dir = DIRPATH + '/graphics/badger/jump/'
-badger_dig_dir = DIRPATH + '/graphics/badger/dig/'
-enemy_walk_dir = DIRPATH + '/graphics/badger/walk/'
-
-font_dir = DIRPATH + '/font/'
-FONT_COLOUR = (64,64,64) # rgb colour
 
 #%% Functions
 
@@ -55,7 +30,11 @@ class Game():
     def __init__(self, title, width, height):
         super().__init__()
         pygame.display.set_caption(title)
-        self.screen = pygame.display.set_mode((width, height))
+        # TODO: Change game icon to a badger
+        self.width = width # game screen width, height (in pixels)
+        self.height = height
+        self.ground = int(0.6 * self.height)
+        self.screen = pygame.display.set_mode((self.width, self.height))
         self.rect = self.screen.get_rect()
         self.clock = pygame.time.Clock()
         self.active = False
@@ -67,13 +46,35 @@ class Game():
         
         self.player = pygame.sprite.GroupSingle()
         self.enemies = pygame.sprite.Group()
-        self.ground_grid = Ground() # initialise ground grid
+        self.max_enemies = 5
+        
+        # initialise ground grid
+        self.ground_grid = Ground(self) 
+
+        # intro screen
+        self.title_font = pygame.font.Font(DIRPATH + '/font/Ulong.ttf', 80)
+        self.stats_font = pygame.font.Font(DIRPATH + '/font/Ulong.ttf', 40)
+        
+        self.intro_img = load_frames(DIRPATH + '/graphics/badger/walk/', 
+                                     scale_by=0.25)[0]
+        self.intro_img_rect = self.intro_img.get_rect(center=(int(width/2),int(height/2)))
         
     def draw(self):
         # self.surface.fill(self.background)
         pass
     
     def run(self):
+        
+        # intro screen surfaces to display
+        title_text_surf = self.title_font.render("Badger Game", False, (64,64,64))
+        title_text_rect = title_text_surf.get_rect(center=(int(self.width/2), 80))
+        dead_text_surf = self.title_font.render("You Died!", False, (64,64,64))
+        dead_text_rect = dead_text_surf.get_rect(midbottom=(int(self.width/2), self.height-100))
+        start_text_surf = self.stats_font.render("(Press space to play)", False, (64,64,64))
+        start_text_rect = start_text_surf.get_rect(midbottom=(int(self.width/2), self.height-50))
+        restart_text_surf = self.stats_font.render("(Press space to play again)", False, (64,64,64))
+        restart_text_rect = restart_text_surf.get_rect(midbottom=(int(self.width/2), self.height-50))
+
         while True:
             # event loop
             for event in pygame.event.get():
@@ -102,8 +103,8 @@ class Game():
                 
                 elif self.active:
                     if event.type == enemy_timer:
-                        # spawn enemies if there are 5 or fewer enemies already spawned
-                        if len(self.enemies) < MAX_ENEMIES:
+                        # spawn enemies if there are n or fewer enemies already spawned
+                        if len(self.enemies) < self.max_enemies:
                             # choose from list of types of enemy to spawn
                             self.enemies.add(Enemy(choice(['badger'])))
                         
@@ -117,8 +118,10 @@ class Game():
             if self.active:
                 
                 # draw sky + ground as rectangles on screen: [left, top, width, height]
-                pygame.draw.rect(self.screen, 'skyblue3', [0,0,WIDTH,GROUND]) # sky
-                pygame.draw.rect(self.screen, 'darkorange1', [0,GROUND,WIDTH,HEIGHT-GROUND]) # ground
+                pygame.draw.rect(self.screen, 'skyblue3', 
+                                 [0, 0, self.width, self.ground]) # sky
+                pygame.draw.rect(self.screen, 'darkorange1', 
+                                 [0, self.ground, self.width, self.height - self.ground]) # ground
                 # TODO: create ground and sky surface from images instead
                 
                 # draw + update grid
@@ -143,8 +146,8 @@ class Game():
                     self.active = False
                 
                 # update delay period after taking damage or colliding
-                if self.player.sprite.damage_delay_period > 0:
-                    self.player.sprite.damage_delay_period -= 1
+                # if self.player.sprite.damage_delay_period > 0:
+                #     self.player.sprite.damage_delay_period -= 1
                 for enemy in pygame.sprite.Group.sprites(self.enemies):
                     if enemy.collision_delay_period > 0:
                         enemy.collision_delay_period -= 1
@@ -153,7 +156,7 @@ class Game():
             elif not self.active:
                 self.screen.fill("springgreen3")
                 self.screen.blit(title_text_surf, title_text_rect)
-                self.screen.blit(badger_stand_surf, badger_stand_rect)
+                self.screen.blit(self.intro_img, self.intro_img_rect)
                 
                 if self.game_time == 0:
                     # not started game yet
@@ -161,8 +164,8 @@ class Game():
                     
                 else:            
                     # if game has been played
-                    total_time_surf = stats_font.render(f'Time (s): {self.game_time}',False,FONT_COLOUR)
-                    total_time_rect = total_time_surf.get_rect(bottomleft=(WIDTH-250,80))
+                    total_time_surf = self.stats_font.render(f'Time (s): {self.game_time}',False,(64,64,64))
+                    total_time_rect = total_time_surf.get_rect(bottomleft=(self.width-250,80))
                     self.screen.blit(total_time_surf, total_time_rect)
                     self.screen.blit(dead_text_surf, dead_text_rect)
                     self.screen.blit(restart_text_surf, restart_text_rect)
@@ -183,70 +186,75 @@ class Game():
         self.clock.tick(self.fps)
 
 class Player(pygame.sprite.Sprite):
-    def __init__(self):
+    def __init__(self, player_type='badger'):
         super().__init__()
-        self.player_walk_frames = badger_walk_frames
+        self.scale_img_by = 0.05
+        self.player_walk_frames = load_frames(DIRPATH + '/graphics/' + 
+                                              player_type + '/walk/', 
+                                              scale_by=self.scale_img_by)
         self.animation_index = 0 # default: first frame
         self.direction = 1 # default: right
-        self.player_jump = pygame.transform.rotozoom(
-            pygame.image.load(badger_jump_dir+'Badger_jump_1.png').convert_alpha(),
-            30, SCALE_IMAGE)
-        self.player_dig = pygame.transform.rotozoom(
-            pygame.image.load(badger_dig_dir + 'Badger_dig_1.png').convert_alpha(),
-            -5, SCALE_IMAGE)
+        self.player_jump = load_frames(DIRPATH + '/graphics/' + 
+                                       player_type + '/jump/',
+                                       rotation=30, scale_by=self.scale_img_by)[0] # TODO: update to animation?
+        self.player_dig = load_frames(DIRPATH + '/graphics/' + 
+                                      player_type + '/dig/',
+                                      rotation=-5, scale_by=self.scale_img_by)[0] # TODO: update to animation?
         self.image = self.player_walk_frames[self.animation_index]
-        self.rect = self.image.get_rect(midbottom=(int(WIDTH/2),GROUND))
+        self.rect = self.image.get_rect(midbottom=(int(game.width/2),game.ground))
+        self.jump_height = 20
         self.gravity = 0 # default gravity
-        self.health = PLAYER_HEALTH
-        self.damage_delay_period = DAMAGE_DELAY
+        self.speed = 4
+        self.health = 5
+        #self.damage_delay_period = 0 # n frames after damage before able to take damage again
     
     def user_input(self):
         keys = pygame.key.get_pressed()
-        if keys[pygame.K_SPACE] and self.rect.bottom >= GROUND:
-            self.gravity = -JUMP_HEIGHT            
+        if keys[pygame.K_SPACE] and self.rect.bottom >= game.ground:
+            self.gravity = -self.jump_height            
         if keys[pygame.K_LEFT]:
             self.direction = -1
-            self.rect.right -= PLAYER_SPEED
+            self.rect.right -= self.speed
         if keys[pygame.K_RIGHT]:
             self.direction = 1
-            self.rect.right += PLAYER_SPEED  
+            self.rect.right += self.speed
         if keys[pygame.K_UP]:
-            if self.rect.bottom >= GROUND:
-                self.rect.bottom -= PLAYER_SPEED
+            if self.rect.bottom >= game.ground:
+                self.rect.bottom -= self.speed
         if keys[pygame.K_DOWN]:
-            self.rect.bottom += PLAYER_SPEED
-            if self.rect.bottom >= HEIGHT:
-                self.rect.bottom = HEIGHT
+            self.rect.bottom += self.speed
+            if self.rect.bottom >= game.height:
+                self.rect.bottom = game.height
                 
         # cycle round screen if player leaves FOV
         if self.rect.right <= 0:
-            self.rect.left = WIDTH
-        elif self.rect.left >= WIDTH:
+            self.rect.left = game.width
+        elif self.rect.left >= game.width:
             self.rect.right = 0
     
     def apply_gravity(self):
         self.gravity += 1
-        if self.rect.bottom <= GROUND:
-            if (GROUND - self.rect.bottom) > self.gravity:
+        if self.rect.bottom <= game.ground:
+            if (game.ground - self.rect.bottom) > self.gravity:
                 self.rect.bottom += self.gravity
             else:
-                self.rect.bottom = GROUND
+                self.rect.bottom = game.ground
              
     def animation_state(self):
         
         # play walking animation if on ground
-        if self.rect.bottom == GROUND:
+        if self.rect.bottom == game.ground:
             self.animation_index += 1/len(self.player_walk_frames)
             if self.animation_index >= len(self.player_walk_frames):
                 self.animation_index = 0
             self.image = self.player_walk_frames[int(self.animation_index)]
             
         # diplay jump surface if above ground
-        elif self.rect.bottom < GROUND:
+        elif self.rect.bottom < game.ground:
             self.image = self.player_jump
         
         # play digging animation if below ground # TODO
-        elif self.rect.bottom > GROUND:
+        elif self.rect.bottom > game.ground:
             self.image = self.player_dig
         
         # face direction of movement
@@ -259,23 +267,24 @@ class Player(pygame.sprite.Sprite):
         self.animation_state()        
         
 class Enemy(pygame.sprite.Sprite):
-    def __init__(self, type):
+    def __init__(self, enemy_type='badger'):
         super().__init__()
         
-        if type == 'badger':
-            self.walk_frames = badger_walk_frames
-        else:
-            self.walk_frames = enemy_walk_frames # default: badger
-            
+        self.scale_img_by = 0.05
+        #if enemy_type == '':
+        self.walk_frames = load_frames(DIRPATH + '/graphics/' + 
+                                       enemy_type + '/walk/', 
+                                       scale_by=self.scale_img_by)
         self.animation_index = 0
         self.direction = -1 # default: left
         self.image = self.walk_frames[self.animation_index]
-        self.rect = self.image.get_rect(bottomleft=(WIDTH,GROUND))
-        self.collision_delay_period = COLLISION_DELAY
+        self.rect = self.image.get_rect(bottomleft=(game.width, game.ground))
+        self.speed = 4
+        self.collision_delay_period = 5 # n frames after collision before recording another collision
         
     def animation_state(self):
         # play walking animation if on ground
-        if self.rect.bottom == GROUND:
+        if self.rect.bottom == game.ground:
             self.animation_index += 1/len(self.walk_frames)
             if self.animation_index >= len(self.walk_frames):
                 self.animation_index = 0
@@ -286,10 +295,10 @@ class Enemy(pygame.sprite.Sprite):
             self.image = pygame.transform.flip(self.image, True, False)
             
     def movement(self):
-        self.rect.right += ENEMY_SPEED * self.direction
+        self.rect.right += self.speed * self.direction
         if self.rect.right <= 0: 
-            self.rect.left = WIDTH
-        elif self.rect.left >= WIDTH:
+            self.rect.left = game.width
+        elif self.rect.left >= game.width:
             self.rect.right = 0
         
     # def destroy(self):
@@ -301,49 +310,12 @@ class Enemy(pygame.sprite.Sprite):
         self.movement()
         # self.destroy()
         
-def collision_sprite():
-    for enemy in pygame.sprite.Group.sprites(game.enemies):
-        # pygame.sprite.spritecollide(player.sprite, enemies, False)
-        if pygame.sprite.collide_mask(enemy, game.player.sprite):
-            if enemy.collision_delay_period <= 0:
-                enemy.direction *= -1
-                if game.player.sprite.damage_delay_period <= 0:
-                    game.player.sprite.health -= 1
-                    game.player.sprite.damage_delay_period = DAMAGE_DELAY
-            enemy.collision_delay_period = COLLISION_DELAY
-            
-def player_dig():
-    delta = math.ceil(PLAYER_SPEED / 10.0) * 10
-    if game.player.sprite.rect.bottom >= GROUND:
-        keys = pygame.key.get_pressed()
-        if keys[pygame.K_DOWN]: # FIXME: Dig until key released (while KEYDOWN?)
-            x_left = math.floor(game.player.sprite.rect.bottomleft[0] / 10.0) * 10
-            x_right = math.ceil(game.player.sprite.rect.bottomright[0] / 10.0) * 10
-            y_bottom = math.floor((game.player.sprite.rect.bottom - GROUND) / 10.0) * 10
-            
-            game.ground_grid.grid[x_left // TILE_SIZE : x_right // TILE_SIZE,
-                                  y_bottom // TILE_SIZE : (y_bottom + delta) // TILE_SIZE] = 0
-        # TODO: Dig left, right, up        
-        #player.sprite.direction
-    
-
-def display_time(start_time):
-    game_time = int(pygame.time.get_ticks() / 1000) - start_time
-    time_surf = stats_font.render(f'Time (s): {game_time}',False,(64,64,64))
-    time_rect = time_surf.get_rect(bottomleft=(WIDTH-250,80))
-    game.screen.blit(time_surf, time_rect)
-    return game_time
-
-def display_health(health_left):
-    health_surf = stats_font.render(f'Health: {health_left}',False,(64,64,64))
-    health_rect = health_surf.get_rect(bottomleft=(WIDTH-250,140))
-    game.screen.blit(health_surf, health_rect)
-    
 class Ground():
-    def __init__(self):
+    def __init__(self, game):
         super().__init__()
-        self.cols = WIDTH // TILE_SIZE
-        self.rows = int(HEIGHT-GROUND) // TILE_SIZE
+        self.tile_size = 10
+        self.cols = game.width // self.tile_size
+        self.rows = int(game.height - game.ground) // self.tile_size
         self.grid = np.ones((self.cols, self.rows))
         self.colour = 'darkorange4' # TODO: replace with texture?
     
@@ -351,199 +323,71 @@ class Ground():
         self.grid = new_grid
         
     def draw_grid(self):
-        for i, x in enumerate(range(0, WIDTH, TILE_SIZE)):
-            for j, y in enumerate(range(0, int(HEIGHT-GROUND), TILE_SIZE)):
+        for i, x in enumerate(range(0, game.width, self.tile_size)):
+            for j, y in enumerate(range(0, int(game.height - game.ground), self.tile_size)):
                 if self.grid[i,j] == 1:
                     pygame.draw.rect(game.screen, self.colour, 
-                                     [x, y+GROUND, TILE_SIZE, TILE_SIZE])
+                                     [x, y + game.ground, self.tile_size, self.tile_size])
 
-#%% Main game params
-
-pygame.init()
-
-# create display surface
-screen = pygame.display.set_mode((WIDTH,HEIGHT))
-
-# name the game
-pygame.display.set_caption('Badgers!')
-# TODO: Change game icon to a badger
-
-# control frame rate
-clock = pygame.time.Clock()
-
-# font params
-title_font = pygame.font.Font(font_dir + 'Ulong.ttf', 80)
-dead_font = pygame.font.Font(font_dir + 'Ulong.ttf', 80)
-stats_font = pygame.font.Font(font_dir + 'Ulong.ttf', 40)
-
-# load badger images
-badger_walk_frames = []
-file_list = [f for f in os.listdir(badger_walk_dir) if '.png' in f]
-file_list.sort()
-for file in file_list:
-    badger_surf = pygame.image.load(badger_walk_dir + file).convert_alpha()
-    #_badger_surf = pygame.transform.scale_by(_badger_surf, (0.05, 0.05))
-    badger_surf = pygame.transform.rotozoom(badger_surf, 0, SCALE_IMAGE)
-    badger_walk_frames.append(badger_surf)
-    
-# default enemy frames = badger frames
-enemy_walk_frames = badger_walk_frames
-
-#%% Intro screen surfaces to display
-
-badger_stand_surf = pygame.image.load(badger_walk_dir+'badger_1.png').convert_alpha()
-badger_stand_surf = pygame.transform.rotozoom(badger_stand_surf, 0, 0.25)
-badger_stand_rect = badger_stand_surf.get_rect(center=(int(WIDTH/2),int(HEIGHT/2)))
-
-# title text
-title_text_surf = title_font.render("Badger Game", False, FONT_COLOUR)
-title_text_rect = title_text_surf.get_rect(center=(int(WIDTH/2), 80))
-
-# dead text
-dead_text_surf = dead_font.render("You Died!", False, FONT_COLOUR)
-dead_text_rect = dead_text_surf.get_rect(midbottom=(int(WIDTH/2), HEIGHT-100))
-
-# start instructions text
-start_text_surf = stats_font.render("(Press space to play)", False, FONT_COLOUR)
-start_text_rect = start_text_surf.get_rect(midbottom=(int(WIDTH/2), HEIGHT-50))
-
-# restart instructions text
-restart_text_surf = stats_font.render("(Press space to play again)", False, FONT_COLOUR)
-restart_text_rect = restart_text_surf.get_rect(midbottom=(int(WIDTH/2), HEIGHT-50))
-
-#%% timers
-
-enemy_timer = pygame.USEREVENT + 1 # add +1 to avoid conflict with default pygame userevent
-pygame.time.set_timer(enemy_timer, randint(5000,10000))
-
-enemy_animation_timer = pygame.USEREVENT + 2
-pygame.time.set_timer(enemy_animation_timer, 15)
-
-#%% Event loop
-
-# game_active = False # start on intro screen
-# start_time = 0
-# game_time = 0
-
-# while True:
-    
-#     # event loop
-#     for event in pygame.event.get():
+def load_frames(dirpath, rotation=0, scale_by=0.05, img_type='.png'):
+    frames = []
+    file_list = [f for f in os.listdir(dirpath) if img_type in f]
+    file_list.sort()
+    for file in file_list:
+        surf = pygame.image.load(dirpath + file).convert_alpha()
+        surf = pygame.transform.rotozoom(surf, rotation, scale_by)
+        frames.append(surf)
         
-#         # check when player closes the game + exit
-#         if event.type == pygame.QUIT:
-#             pygame.quit()
-#             sys.exit() # alternatively: raise SystemExit
-                        
-#         if not game_active: # if game_active == False, start/restart game
-#             if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
-#                     game_active = True
-
-#                     # initialise player and enemy sprite groups
-#                     # create instance of Player class in GroupSingle
-#                     # NB: enemies can be grouped together but the player needs to be in its own group
-#                     # so you can check for collisions (cannot check collisions between members of same group)
-#                     player = pygame.sprite.GroupSingle()
-#                     player.add(Player())
-#                     enemies = pygame.sprite.Group()
-                    
-#                     # initialise ground grid
-#                     ground_grid = Ground()
-#                     #ground_grid.grid[1:10,1:10] = 0
-                    
-#                     start_time = int(pygame.time.get_ticks() / 1000)
-                    
-#         else:
-#             # if event.type == pygame.MOUSEMOTION:
-#             #     if player.sprite.rect.collidepoint(event.pos):
-#             #         print("Hovering over badger")
-#             #     for enemy in pygame.sprite.Group.sprites(enemies):
-#             #         if enemy.rect.collidepoint(event.pos):
-#             #             print("Hovering over enemy")
-                
-#             if event.type == enemy_timer:
-#                 # spawn enemies if there are 5 or fewer enemies already spawned
-#                 if len(enemies) < MAX_ENEMIES:
-#                     # choose from list of types of enemy to spawn
-#                     enemies.add(Enemy(choice(['badger'])))
-                
-#                 # update timer with new random spawn time
-#                 pygame.time.set_timer(enemy_timer, randint(5000,10000))
+    return frames
+        
+def collision_sprite():
+    for enemy in pygame.sprite.Group.sprites(game.enemies):
+        # pygame.sprite.spritecollide(player.sprite, enemies, False)
+        if pygame.sprite.collide_mask(enemy, game.player.sprite):
+            if enemy.collision_delay_period <= 0:
+                enemy.direction *= -1
+                # if game.player.sprite.damage_delay_period <= 0:
+                #     game.player.sprite.health -= 1
+                #     game.player.sprite.damage_delay_period = DAMAGE_DELAY
+            enemy.collision_delay_period = enemy.collision_delay_period # n frames after collision before recording another collision
             
-#             if event.type == pygame.KEYDOWN and event.key == pygame.K_d:
-#                 player_dig()
-    
-#     if game_active:
-        
-#         # draw sky + ground as rectangles on screen: [left, top, width, height]
-#         sky = pygame.draw.rect(screen, 'skyblue3', [0,0,WIDTH,GROUND])
-#         ground = pygame.draw.rect(screen, 'darkorange1', [0,GROUND,WIDTH,HEIGHT-GROUND])
-#         # TODO: create ground and sky surface from images instead
-        
-#         # draw + update grid
-#         ground_grid.draw_grid()
-        
-#         screen.blit(title_text_surf, title_text_rect) # blit = block image transfer
-#         game_time = display_time(start_time)
-                
-#         # draw + update player and enemy sprites
-#         player.draw(screen)
-#         player.update()
-#         enemies.draw(screen)
-#         enemies.update()
-        
-#         # check collisions
-#         collision_sprite()
-                            
-#         # display player health + check if 0 health -> end game
-#         health_left = player.sprite.health
-#         display_health(health_left)
-#         if health_left <= 0:
-#             game_active = False
-        
-#         # update delay period after taking damage or colliding
-#         if player.sprite.damage_delay_period > 0:
-#             player.sprite.damage_delay_period -= 1
-#         for enemy in pygame.sprite.Group.sprites(enemies):
-#             if enemy.collision_delay_period > 0:
-#                 enemy.collision_delay_period -= 1
-                
-#     #%% Intro
-                
-#     else: # intro screen if game_active == False
-#         screen.fill("springgreen3")
-#         screen.blit(title_text_surf, title_text_rect)
-#         screen.blit(badger_stand_surf, badger_stand_rect)
-        
-#         if game_time == 0:
-#             # not started game yet
-#             screen.blit(start_text_surf, start_text_rect)
+def player_dig(): # TODO: put in player class
+    delta = math.ceil(game.player.sprite.speed / 10.0) * 10
+    if game.player.sprite.rect.bottom >= game.ground:
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_DOWN]: # FIXME: Dig until key released (while KEYDOWN?)
+            x_left = math.floor(game.player.sprite.rect.bottomleft[0] / 10.0) * 10
+            x_right = math.ceil(game.player.sprite.rect.bottomright[0] / 10.0) * 10
+            y_bottom = math.floor((game.player.sprite.rect.bottom - game.ground) / 10.0) * 10
             
-#         else:            
-#             # if game has been played
-#             total_time_surf = stats_font.render(f'Time (s): {game_time}',False,FONT_COLOUR)
-#             total_time_rect = total_time_surf.get_rect(bottomleft=(WIDTH-250,80))
-#             screen.blit(total_time_surf, total_time_rect)
-#             screen.blit(dead_text_surf, dead_text_rect)
-#             screen.blit(restart_text_surf, restart_text_rect)
-            
-#             # reset player + spawned enemies
-#             player.empty()
-#             enemies.empty()
-            
-#             # reset ground grid on new game # TODO
+            ts = game.ground_grid.tile_size
+            game.ground_grid.grid[x_left // ts : x_right // ts,
+                                  y_bottom // ts : (y_bottom + delta) // ts] = 0
+        # TODO: Dig left, right, up        
+        #player.sprite.direction   
 
-#     # update everything
-#     pygame.display.update()
+def display_time(start_time):
+    game_time = int(pygame.time.get_ticks() / 1000) - start_time
+    time_surf = game.stats_font.render(f'Time (s): {game_time}',False,(64,64,64))
+    time_rect = time_surf.get_rect(bottomleft=(game.width-250, 80))
+    game.screen.blit(time_surf, time_rect)
+    return game_time
+
+def display_health(health_left):
+    health_surf = game.stats_font.render(f'Health: {health_left}',False,(64,64,64))
+    health_rect = health_surf.get_rect(bottomleft=(game.width-250,140))
+    game.screen.blit(health_surf, health_rect)
     
-#     # Delta time for smooth movement
-#     clock.tick(MAX_FRAME_RATE)
-     
-#%%
+#%% Main
 
 if __name__ == "__main__":
     pygame.init()
-    game = Game("Badgers!", WIDTH, HEIGHT)
-    game.run()
-
+    game = Game(title="Badgers!", width=1200, height=800)
     
+    # timers  
+    enemy_timer = pygame.USEREVENT + 1 # add +1 to avoid conflict with default pygame userevent
+    pygame.time.set_timer(enemy_timer, randint(5000,10000))
+    enemy_animation_timer = pygame.USEREVENT + 2
+    pygame.time.set_timer(enemy_animation_timer, 15)    
+
+    game.run()
