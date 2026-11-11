@@ -21,15 +21,16 @@ import numpy as np
 import math
 
 from scripts.utils import load_images, Animation
-from scripts.entities import Player
+from scripts.entities import Player, Enemy
 from scripts.tilemap import Tilemap
 from scripts.clouds import Clouds
 from scripts.particles import Particle
 
 #%% Globals
 
-RENDER_SCALE = 2.0
 #DIRPATH = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+
+RENDER_SCALE = 2.0
 
 #%% Functions
 
@@ -38,7 +39,7 @@ class Game():
         super().__init__()
         
         pygame.display.set_caption('Badgers!')
-        pygame.display.set_icon(load_images('badger/walk', img_type='.png', rotate=0, scale=0.05)[0])
+        pygame.display.set_icon(load_images('entities/badger/walk')[0])
 
         self.screen = pygame.display.set_mode((1200, 800)) # game screen width, height (in pixels)
         self.display = pygame.Surface((self.screen.get_width() // RENDER_SCALE,
@@ -57,26 +58,29 @@ class Game():
         # self.game_time = 0
         # #self.background
         self.assets = {
-            'grass': load_images('grass', img_type='.png', rotate=0, scale=0.05),
-            'mud': load_images('mud', img_type='.png', rotate=0, scale=0.05),
-            'foliage': load_images('foliage', img_type='.png', rotate=0, scale=0.05),
+            'grass': load_images('tiles/grass', scale=0.05),
+            'mud': load_images('tiles/mud', scale=0.05),
+            'foliage': load_images('tiles/foliage', scale=0.05),
             #'background': load_image('background.png'),
-            'clouds': load_images('badger/walk', img_type='.png', rotate=0, scale=0.05),
-            'player/idle': Animation(load_images('badger/idle', img_type='.png', rotate=0, scale=0.05), img_dur=15),
-            'player/walk': Animation(load_images('badger/walk', img_type='.png', rotate=0, scale=0.05), img_dur=4),
-            'player/jump': Animation(load_images('badger/jump', img_type='.png', rotate=0, scale=0.05), img_dur=5),
-            'player/wall_slide': Animation(load_images('badger/wall_slide', img_type='.png', rotate=0, scale=0.05), img_dur=5),
-            'player/dig': Animation(load_images('badger/dig', img_type='.png', rotate=0, scale=0.05), img_dur=5),
-            'particles/leaf': Animation(load_images('particles/leaf', img_type='.png', rotate=45, scale=0.01), img_dur=50, loop=False)
+            'clouds': load_images('clouds', scale=0.05),
+            'enemy/idle': Animation(load_images('entities/enemy/idle', scale=0.05), img_dur=15),
+            'enemy/walk': Animation(load_images('entities/enemy/walk', scale=0.05), img_dur=4),
+            'player/idle': Animation(load_images('entities/badger/idle', scale=0.05), img_dur=15),
+            'player/walk': Animation(load_images('entities/badger/walk', scale=0.05), img_dur=4),
+            'player/jump': Animation(load_images('entities/badger/jump', scale=0.05), img_dur=5),
+            'player/wall_slide': Animation(load_images('entities/badger/wall_slide', scale=0.05), img_dur=5),
+            'player/dig': Animation(load_images('entities/badger/dig', scale=0.05), img_dur=5),
+            'particles/leaf': Animation(load_images('particles/leaf', rotate=-45, scale=0.01), img_dur=50, loop=False),
+            'particles/woosh': Animation(load_images('particles/woosh', scale=0.01), img_dur=6, loop=False),
             }
                 
         self.clouds = Clouds(self.assets['clouds'], count=16)
         
         #self.player = pygame.sprite.GroupSingle()
-        self.player = Player(self,
-                             pos=(int(self.display.get_width() // RENDER_SCALE), 
-                                  int(self.ground // RENDER_SCALE)), 
-                             size = (8, 15))
+        self.player = Player(self, # game
+                             pos = (int(self.display.get_width() // RENDER_SCALE), 
+                                    int(self.ground // RENDER_SCALE)), 
+                             size = (8, 15)) # in pixels
         
         self.tilemap = Tilemap(self, tile_size=16)
         self.tilemap.load('map.json')
@@ -88,9 +92,23 @@ class Game():
                                                   4 + tree['pos'][1], #y-axis
                                                   23, #width
                                                   13)) #height
+        
+        # player + enemy spawning from positions set in editor
+        self.enemies = []
+        for spawner in self.tilemap.extract([('spawners', 0), ('spawners', 1)], keep=False):
+            # player spawner
+            if spawner['variant'] == 0:
+                #print(spawner['pos'], 'player spawned')
+                self.player.pos = spawner['pos']
+            # enemy spawner
+            else:
+                #print(spawner['pos'], 'enemy spawned')
+                self.enemies.append(Enemy(self, # game
+                                          pos = spawner['pos'],
+                                          size = (8, 15))) # in pixels
+        
         #print(self.leaf_spawners)
         self.particles = []
-        
         
         self.scroll = [0, 0]
         
@@ -142,6 +160,10 @@ class Game():
             
             self.tilemap.render(self.display, offset=render_scroll)
             
+            for enemy in self.enemies.copy():
+                enemy.update(self.tilemap, (0, 0)) # default no movement
+                enemy.render(self.display, offset=render_scroll)
+            
             self.player.update(self.tilemap, (self.movement[1] - self.movement[0], 0))
             self.player.render(self.display, offset=render_scroll)
             
@@ -166,6 +188,8 @@ class Game():
                         self.movement[1] = True
                     if event.key == pygame.K_UP:
                         self.player.jump()
+                    if event.key == pygame.K_x:
+                        self.player.dash()
                 
                 if event.type == pygame.KEYUP:
                     if event.key == pygame.K_LEFT:

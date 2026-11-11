@@ -18,8 +18,6 @@ from scripts.tilemap import Tilemap
 
 RENDER_SCALE = 2.0
 
-#DIRPATH = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-
 #%% Functions
 
 class Editor():
@@ -37,9 +35,10 @@ class Editor():
         self.fps = 60
 
         self.assets = {
-            'grass': load_images('grass', img_type='.png', rotate=0, scale=0.05),
-            'mud': load_images('mud', img_type='.png', rotate=0, scale=0.05),
-            'foliage': load_images('foliage', img_type='.png', rotate=0, scale=0.05),
+            'grass': load_images('tiles/grass', img_type='.png', rotate=0, scale=0.05),
+            'mud': load_images('tiles/mud', img_type='.png', rotate=0, scale=0.05),
+            'foliage': load_images('tiles/foliage', img_type='.png', rotate=0, scale=0.05),
+            'spawners': load_images('tiles/spawners', img_type='.png', rotate=0, scale=0.05)
             }
 
         self.movement = [False, False, False, False]
