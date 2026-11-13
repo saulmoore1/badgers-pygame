@@ -13,24 +13,25 @@ An attempt at using PyGame to make a game about badgers
 
 #%% Imports
 
-# import os
 import sys
 import pygame
 import random
 import numpy as np
 import math
 
-from scripts.utils import load_images, Animation
+from scripts.utils import load_image, load_images, Animation
 from scripts.entities import Player, Enemy
 from scripts.tilemap import Tilemap
 from scripts.clouds import Clouds
 from scripts.particles import Particle
+from scripts.sparks import Spark
 
 #%% Globals
 
 #DIRPATH = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 RENDER_SCALE = 2.0
+IMG_SCALE = 0.05
 
 #%% Functions
 
@@ -58,60 +59,36 @@ class Game():
         # self.game_time = 0
         # #self.background
         self.assets = {
-            'grass': load_images('tiles/grass', scale=0.05),
-            'mud': load_images('tiles/mud', scale=0.05),
-            'foliage': load_images('tiles/foliage', scale=0.05),
+            'grass': load_images('tiles/grass', scale=IMG_SCALE),
+            'mud': load_images('tiles/mud', scale=IMG_SCALE),
+            'foliage': load_images('tiles/foliage', scale=IMG_SCALE),
             #'background': load_image('background.png'),
-            'clouds': load_images('clouds', scale=0.05),
-            'enemy/idle': Animation(load_images('entities/enemy/idle', scale=0.05), img_dur=15),
-            'enemy/walk': Animation(load_images('entities/enemy/walk', scale=0.05), img_dur=4),
-            'player/idle': Animation(load_images('entities/badger/idle', scale=0.05), img_dur=15),
-            'player/walk': Animation(load_images('entities/badger/walk', scale=0.05), img_dur=4),
-            'player/jump': Animation(load_images('entities/badger/jump', scale=0.05), img_dur=5),
-            'player/wall_slide': Animation(load_images('entities/badger/wall_slide', scale=0.05), img_dur=5),
-            'player/dig': Animation(load_images('entities/badger/dig', scale=0.05), img_dur=5),
+            'clouds': load_images('clouds', scale=0.15),
+            'enemy/idle': Animation(load_images('entities/enemy/idle', scale=IMG_SCALE), img_dur=15),
+            'enemy/walk': Animation(load_images('entities/enemy/walk', scale=IMG_SCALE), img_dur=4),
+            'player/idle': Animation(load_images('entities/badger/idle', scale=IMG_SCALE), img_dur=15),
+            'player/walk': Animation(load_images('entities/badger/walk', scale=IMG_SCALE), img_dur=4),
+            'player/jump': Animation(load_images('entities/badger/jump', scale=IMG_SCALE), img_dur=5),
+            'player/wall_slide': Animation(load_images('entities/badger/wall_slide', scale=IMG_SCALE), img_dur=5),
+            'player/dig': Animation(load_images('entities/badger/dig', scale=IMG_SCALE), img_dur=5),
             'particles/leaf': Animation(load_images('particles/leaf', rotate=-45, scale=0.01), img_dur=50, loop=False),
             'particles/woosh': Animation(load_images('particles/woosh', scale=0.01), img_dur=6, loop=False),
+            'gun': load_image('weapons/gun.png', scale=0.01),
+            'bullet': load_image('weapons/bullet.png', scale=0.007)
             }
-                
-        self.clouds = Clouds(self.assets['clouds'], count=16)
+        
+        self.clouds = Clouds(self.assets['clouds'], count=8)
         
         #self.player = pygame.sprite.GroupSingle()
         self.player = Player(self, # game
                              pos = (int(self.display.get_width() // RENDER_SCALE), 
                                     int(self.ground // RENDER_SCALE)), 
-                             size = (8, 15)) # in pixels
+                             size = self.assets['player/walk'].max_dims())
         
-        self.tilemap = Tilemap(self, tile_size=16)
-        self.tilemap.load('map.json')
+        self.tilemap = Tilemap(self, tile_size=self.assets['grass'][0].get_width())
         
-        # hard code a hitbox around foliage for leaf spawning
-        self.leaf_spawners = []
-        for tree in self.tilemap.extract([('foliage', 0)], keep=True):
-            self.leaf_spawners.append(pygame.Rect(4 + tree['pos'][0], #x-axis
-                                                  4 + tree['pos'][1], #y-axis
-                                                  23, #width
-                                                  13)) #height
-        
-        # player + enemy spawning from positions set in editor
-        self.enemies = []
-        for spawner in self.tilemap.extract([('spawners', 0), ('spawners', 1)], keep=False):
-            # player spawner
-            if spawner['variant'] == 0:
-                #print(spawner['pos'], 'player spawned')
-                self.player.pos = spawner['pos']
-            # enemy spawner
-            else:
-                #print(spawner['pos'], 'enemy spawned')
-                self.enemies.append(Enemy(self, # game
-                                          pos = spawner['pos'],
-                                          size = (8, 15))) # in pixels
-        
-        #print(self.leaf_spawners)
-        self.particles = []
-        
-        self.scroll = [0, 0]
-        
+        self.load_level(0)
+                
         # self.enemies = pygame.sprite.Group()
         # self.max_enemies = 5
         
@@ -128,6 +105,37 @@ class Game():
         
         #self.collision_area = pygame.Rect(50, self.ground-50, 100, 50)
                 
+    def load_level(self, map_id):
+        self.tilemap.load('data/maps/' + str(map_id) + '.json')
+        
+        # hard code a hitbox around foliage for leaf spawning
+        self.leaf_spawners = []
+        for tree in self.tilemap.extract([('foliage', 0)], keep=True):
+            self.leaf_spawners.append(pygame.Rect(4 + tree['pos'][0], #x-axis
+                                                  4 + tree['pos'][1], #y-axis
+                                                  23, #width
+                                                  13)) #height
+        #print(self.leaf_spawners)
+        
+        # player + enemy spawning from positions set in editor
+        self.enemies = []
+        for spawner in self.tilemap.extract([('spawners', 0), ('spawners', 1)], keep=False):
+            # player spawner
+            if spawner['variant'] == 0:
+                #print(spawner['pos'], 'player spawned')
+                self.player.pos = spawner['pos']
+            # enemy spawner
+            else:
+                #print(spawner['pos'], 'enemy spawned')
+                self.enemies.append(Enemy(self, # game
+                                          pos = spawner['pos'],
+                                          size = self.assets['enemy/walk'].max_dims()))
+        self.projectiles = []
+        self.particles = []
+        self.sparks = []
+        
+        self.scroll = [0, 0]
+    
     def run(self):
         while True:
             self.display.fill((14, 219, 248))
@@ -166,8 +174,50 @@ class Game():
             
             self.player.update(self.tilemap, (self.movement[1] - self.movement[0], 0))
             self.player.render(self.display, offset=render_scroll)
-            
             #print(self.tilemap.physics_rects_around(self.player.pos))
+            
+            # [[x, y], direction, timer]
+            for projectile in self.projectiles.copy():
+                projectile[0][0] += projectile[1] # x pos
+                projectile[2] += 1 # timer
+                img = self.assets['bullet']
+                self.display.blit(img, 
+                                  (projectile[0][0] - img.get_width() / 2 - render_scroll[0], 
+                                   projectile[0][1] - img.get_height() / 2 - render_scroll[1]))
+                # make projectile disappear when it hits a wall
+                if self.tilemap.solid_check(projectile[0]):
+                    self.projectiles.remove(projectile)
+                    # sparks when projectile hits wall 
+                    for i in range(4):
+                        self.sparks.append(Spark(projectile[0], # last projectile position
+                                                 # sparks left only if projectile is going right, and vice versa
+                                                 random.random() - 0.5 + (math.pi if projectile[1] > 0 else 0),
+                                                 2 + random.random())) # random speed
+                # projectile timeout after 6 seconds
+                elif projectile[2] > 360:
+                    self.projectiles.remove(projectile)
+                # check if bullet hits the player (if not dashing)
+                # player is invincible while dashing
+                elif abs(self.player.dashing) < 50:
+                    if self.player.rect().collidepoint(projectile[0]):
+                        self.projectiles.remove(projectile)
+                        # sparks + particles when projectile hits the player
+                        for i in range(30):
+                            angle = random.random() * math.pi * 2 # random direction in a full circle
+                            speed = random.random() * 5
+                            self.sparks.append(Spark(self.player.rect().center, angle, 2 + random.random()))
+                            self.particles.append(Particle(self, 
+                                                           'woosh', 
+                                                           self.player.rect().center,
+                                                           velocity=[math.cos(angle + math.pi) * speed * 0.5,
+                                                                     math.sin(angle + math.pi) * speed * 0.5],
+                                                           frame=random.randint(0, 7)))
+                        
+            for spark in self.sparks.copy():
+                kill = spark.update()
+                spark.render(self.display, offset=render_scroll)
+                if kill:
+                    self.sparks.remove(spark)
             
             for particle in self.particles.copy():
                 kill = particle.update()

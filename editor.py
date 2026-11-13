@@ -7,7 +7,6 @@ Level Editor
 
 #%% Imports
 
-# import os
 import sys
 import pygame
 
@@ -17,6 +16,7 @@ from scripts.tilemap import Tilemap
 #%% Globals
 
 RENDER_SCALE = 2.0
+IMG_SCALE = 0.05
 
 #%% Functions
 
@@ -25,7 +25,7 @@ class Editor():
         super().__init__()
         
         pygame.display.set_caption('Editor')
-        pygame.display.set_icon(load_images('badger/walk', img_type='.png', rotate=0, scale=0.05)[0])
+        pygame.display.set_icon(load_images('entities/badger/walk', img_type='.png', rotate=0, scale=0.05)[0])
 
         self.screen = pygame.display.set_mode((1200, 800)) # game screen width, height (in pixels)
         self.display = pygame.Surface((self.screen.get_width() // RENDER_SCALE,
@@ -35,18 +35,19 @@ class Editor():
         self.fps = 60
 
         self.assets = {
-            'grass': load_images('tiles/grass', img_type='.png', rotate=0, scale=0.05),
-            'mud': load_images('tiles/mud', img_type='.png', rotate=0, scale=0.05),
-            'foliage': load_images('tiles/foliage', img_type='.png', rotate=0, scale=0.05),
-            'spawners': load_images('tiles/spawners', img_type='.png', rotate=0, scale=0.05)
+            'grass': load_images('tiles/grass', img_type='.png', rotate=0, scale=IMG_SCALE),
+            'mud': load_images('tiles/mud', img_type='.png', rotate=0, scale=IMG_SCALE),
+            'foliage': load_images('tiles/foliage', img_type='.png', rotate=0, scale=IMG_SCALE),
+            'spawners': load_images('tiles/spawners', img_type='.png', rotate=0, scale=IMG_SCALE)
             }
 
         self.movement = [False, False, False, False]
                         
-        self.tilemap = Tilemap(self, tile_size=16)
+        self.tilemap = Tilemap(self, 
+                               tile_size=self.assets['grass'][0].get_width()) # assume square
         
         try:
-            self.tilemap.load('map.json')
+            self.tilemap.load('data/maps/0.json')
         except FileNotFoundError:
             pass
         
@@ -189,7 +190,6 @@ class Editor():
                     if event.key == pygame.K_DOWN:
                         self.movement[3] = False
                        
-    # def update(self):
             self.screen.blit(pygame.transform.scale(self.display, self.screen.get_size()), (0, 0))
             pygame.display.update()
             self.clock.tick(self.fps)
