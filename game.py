@@ -13,6 +13,7 @@ An attempt at using PyGame to make a game about badgers
 
 #%% Imports
 
+import os
 import sys
 import pygame
 import random
@@ -33,6 +34,8 @@ from scripts.sparks import Spark
 RENDER_SCALE = 2.0
 IMG_SCALE = 0.05
 
+LEVEL = 0
+
 #%% Functions
 
 class Game():
@@ -44,26 +47,30 @@ class Game():
 
         self.screen = pygame.display.set_mode((1200, 800)) # game screen width, height (in pixels)
         self.display = pygame.Surface((self.screen.get_width() // RENDER_SCALE,
-                                       self.screen.get_height() // RENDER_SCALE))
+                                       self.screen.get_height() // RENDER_SCALE),
+                                      pygame.SRCALPHA)
+        # second surface for outlines
+        self.display_2 = pygame.Surface((self.screen.get_width() // RENDER_SCALE,
+                                         self.screen.get_height() // RENDER_SCALE))
+        
         self.clock = pygame.time.Clock()
-        
-        self.ground = int(0.6 * self.display.get_height())
-        
+        self.fps = 60                
         self.movement = [False, False]
         
         # self.rect = self.screen.get_rect()
         # self.active = False
         # self.delta = 0
-        self.fps = 60
         # self.start_time = 0
         # self.game_time = 0
-        # #self.background
+        self.ground = int(0.6 * self.display.get_height())
+
+
         self.assets = {
             'grass': load_images('tiles/grass', scale=IMG_SCALE),
             'mud': load_images('tiles/mud', scale=IMG_SCALE),
             'foliage': load_images('tiles/foliage', scale=IMG_SCALE),
             #'background': load_image('background.png'),
-            'clouds': load_images('clouds', scale=0.15),
+            'clouds': load_images('clouds', scale=0.1),
             'enemy/idle': Animation(load_images('entities/enemy/idle', scale=IMG_SCALE), img_dur=15),
             'enemy/walk': Animation(load_images('entities/enemy/walk', scale=IMG_SCALE), img_dur=4),
             'player/idle': Animation(load_images('entities/badger/idle', scale=IMG_SCALE), img_dur=15),
@@ -87,13 +94,16 @@ class Game():
         
         self.tilemap = Tilemap(self, tile_size=self.assets['grass'][0].get_width())
         
-        self.load_level(0)
+        self.level = LEVEL
+        self.load_level(self.level)
+        
+        self.screenshake = 0
                 
         # self.enemies = pygame.sprite.Group()
         # self.max_enemies = 5
         
         # initialise ground grid
-        self.ground_grid = Ground(self) 
+        #self.ground_grid = Ground(self) 
 
         # # intro screen
         # self.title_font = pygame.font.Font(DIRPATH + '/font/Ulong.ttf', 80)
@@ -122,6 +132,7 @@ class Game():
         for spawner in self.tilemap.extract([('spawners', 0), ('spawners', 1)], keep=False):
             # player spawner
             if spawner['variant'] == 0:
+                self.player.air_time = 0 # to avoid trigger multiple times
                 #print(spawner['pos'], 'player spawned')
                 self.player.pos = spawner['pos']
             # enemy spawner
@@ -135,11 +146,34 @@ class Game():
         self.sparks = []
         
         self.scroll = [0, 0]
+        self.dead = 0
+        self.transistion = -30 # 
     
     def run(self):
         while True:
             self.display.fill((14, 219, 248))
             #self.display.blit(self.assets['background'], (0, 0))
+            
+            self.screenshake = max(0, self.screenshake - 1) # screenshake timer
+            
+            # if all of the enemies are dead, transistion level
+            if not len(self.enemies):
+                self.transistion += 1
+                if self.transistion > 30:
+                    # load next level if exists (check n levels in data/maps dir)
+                    self.level = min(self.level + 1, len(os.listdir('data/maps/')) - 1)
+                    self.load_level(self.level) # load level during full blackscreen
+            if self.transistion < 0:
+                self.transistion += 1
+            
+            # increment damage counter if player hit during frame
+            if self.dead:
+                self.dead += 1
+                if self.dead >= 10:
+                    # if dead do not transisiton to next level (do not exceed 30)
+                    self.transistion = min(30, self.transistion + 1)
+                if self.dead > 40:
+                    self.load_level(self.level)
             
             # pan camera centered on player
             self.scroll[0] += (self.player.rect().centerx - 
@@ -169,12 +203,15 @@ class Game():
             self.tilemap.render(self.display, offset=render_scroll)
             
             for enemy in self.enemies.copy():
-                enemy.update(self.tilemap, (0, 0)) # default no movement
+                kill = enemy.update(self.tilemap, (0, 0)) # default no movement
                 enemy.render(self.display, offset=render_scroll)
+                if kill:
+                    self.enemies.remove(enemy)
             
-            self.player.update(self.tilemap, (self.movement[1] - self.movement[0], 0))
-            self.player.render(self.display, offset=render_scroll)
-            #print(self.tilemap.physics_rects_around(self.player.pos))
+            if not self.dead:
+                self.player.update(self.tilemap, (self.movement[1] - self.movement[0], 0))
+                self.player.render(self.display, offset=render_scroll)
+                #print(self.tilemap.physics_rects_around(self.player.pos))
             
             # [[x, y], direction, timer]
             for projectile in self.projectiles.copy():
@@ -201,6 +238,10 @@ class Game():
                 elif abs(self.player.dashing) < 50:
                     if self.player.rect().collidepoint(projectile[0]):
                         self.projectiles.remove(projectile)
+                        # damage player when hit
+                        self.dead += 1
+                        # shake screen when player is hit
+                        self.screenshake = max(16, self.screenshake)
                         # sparks + particles when projectile hits the player
                         for i in range(30):
                             angle = random.random() * math.pi * 2 # random direction in a full circle
@@ -248,9 +289,24 @@ class Game():
                         self.movement[1] = False
             # movement adds up both inputs if two keys pressed
             # self.img_pos[1] += self.movement[1] - self.movement[0] * self.movement_speed 
-                       
-    # def update(self):
-            self.screen.blit(pygame.transform.scale(self.display, self.screen.get_size()), (0, 0))
+            
+            if self.transistion:
+                transistion_surf = pygame.Surface(self.display.get_size())
+                # radius of circle shrinks then expands to screen size
+                pygame.draw.circle(transistion_surf, 
+                                   (255, 255, 255), # colour white, but will be set to transparent
+                                   (self.display.get_width() // 2,
+                                    self.display.get_height() // 2), 
+                                   (30 - abs(self.transistion)) * self.display.get_width() // 30) # radius
+                transistion_surf.set_colorkey((255, 255, 255)) # set white to transparent
+                self.display.blit(transistion_surf, (0, 0))
+            
+            # random shake in x, y from 0 pixels up to screenshake value
+            screenshake_offset = (random.random() * self.screenshake - self.screenshake / 2,
+                                  random.random() * self.screenshake - self.screenshake / 2)
+            
+            self.screen.blit(pygame.transform.scale(self.display, self.screen.get_size()), 
+                             screenshake_offset)
             pygame.display.update()
             self.clock.tick(self.fps)
             

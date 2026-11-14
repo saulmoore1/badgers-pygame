@@ -18,6 +18,8 @@ from scripts.tilemap import Tilemap
 RENDER_SCALE = 2.0
 IMG_SCALE = 0.05
 
+LEVEL = 0
+
 #%% Functions
 
 class Editor():
@@ -47,7 +49,7 @@ class Editor():
                                tile_size=self.assets['grass'][0].get_width()) # assume square
         
         try:
-            self.tilemap.load('data/maps/0.json')
+            self.tilemap.load('data/maps/' + str(LEVEL) + '.json')
         except FileNotFoundError:
             pass
         
@@ -165,7 +167,7 @@ class Editor():
                     if event.key == pygame.K_t:
                         self.tilemap.autotile()
                     if event.key == pygame.K_o:
-                        self.tilemap.save('map.json')
+                        self.tilemap.save('data/maps/' + str(LEVEL) + '.json')
                         print("Map saved!")
                         
                     if event.key == pygame.K_LEFT:
