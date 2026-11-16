@@ -17,6 +17,7 @@ from scripts.tilemap import Tilemap
 
 RENDER_SCALE = 2.0
 IMG_SCALE = 0.05
+DISPLAY_SIZE = (1280, 720)
 
 LEVEL = 0
 
@@ -29,7 +30,7 @@ class Editor():
         pygame.display.set_caption('Editor')
         pygame.display.set_icon(load_images('entities/badger/walk', img_type='.png', rotate=0, scale=0.05)[0])
 
-        self.screen = pygame.display.set_mode((1200, 800)) # game screen width, height (in pixels)
+        self.screen = pygame.display.set_mode(DISPLAY_SIZE) # game screen width, height (in pixels)
         self.display = pygame.Surface((self.screen.get_width() // RENDER_SCALE,
                                        self.screen.get_height() // RENDER_SCALE))
         self.clock = pygame.time.Clock()

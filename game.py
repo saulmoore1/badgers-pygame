@@ -33,6 +33,7 @@ from scripts.sparks import Spark
 
 RENDER_SCALE = 2.0
 IMG_SCALE = 0.05
+DISPLAY_SIZE = (1280, 720)
 
 LEVEL = 0
 
@@ -45,11 +46,12 @@ class Game():
         pygame.display.set_caption('Badgers!')
         pygame.display.set_icon(load_images('entities/badger/walk')[0])
 
-        self.screen = pygame.display.set_mode((1200, 800)) # game screen width, height (in pixels)
+        self.screen = pygame.display.set_mode(DISPLAY_SIZE) # game screen width, height (in pixels)
+        # display surface (outline applied)
         self.display = pygame.Surface((self.screen.get_width() // RENDER_SCALE,
                                        self.screen.get_height() // RENDER_SCALE),
                                       pygame.SRCALPHA)
-        # second surface for outlines
+        # second display surface (no outline applied)
         self.display_2 = pygame.Surface((self.screen.get_width() // RENDER_SCALE,
                                          self.screen.get_height() // RENDER_SCALE))
         
@@ -64,12 +66,11 @@ class Game():
         # self.game_time = 0
         self.ground = int(0.6 * self.display.get_height())
 
-
         self.assets = {
             'grass': load_images('tiles/grass', scale=IMG_SCALE),
             'mud': load_images('tiles/mud', scale=IMG_SCALE),
             'foliage': load_images('tiles/foliage', scale=IMG_SCALE),
-            #'background': load_image('background.png'),
+            'background': load_image('background/0.png'),
             'clouds': load_images('clouds', scale=0.1),
             'enemy/idle': Animation(load_images('entities/enemy/idle', scale=IMG_SCALE), img_dur=15),
             'enemy/walk': Animation(load_images('entities/enemy/walk', scale=IMG_SCALE), img_dur=4),
@@ -84,6 +85,31 @@ class Game():
             'bullet': load_image('weapons/bullet.png', scale=0.007)
             }
         
+        # scale background to the dimensions of the display
+        w, h = self.assets['background'].get_size()
+        sw, sh = self.display.get_size()
+        self.assets['background'] = pygame.transform.scale(self.assets['background'], 
+                                                           (int(sh/h * w), sh)) # keep ratio
+        
+        # sounds effects
+        self.sfx = {
+            'jump': pygame.mixer.Sound('data/sfx/jump.wav'),
+            'walk': pygame.mixer.Sound('data/sfx/walk.wav'),
+            'dash': pygame.mixer.Sound('data/sfx/dash.wav'),
+            'hit': pygame.mixer.Sound('data/sfx/hit.wav'),
+            'shoot': pygame.mixer.Sound('data/sfx/shoot.wav'),
+            'ambience': pygame.mixer.Sound('data/sfx/ambience.wav'),
+            #'death': pygame.mixer.Sound('data/sfx/death.wav')
+            }
+        
+        self.sfx['jump'].set_volume(0.3)
+        self.sfx['walk'].set_volume(0.3)
+        self.sfx['dash'].set_volume(0.5)
+        self.sfx['hit'].set_volume(0.5)
+        self.sfx['shoot'].set_volume(0.3)
+        self.sfx['ambience'].set_volume(0.5)
+        #self.sfx['death'].set_volume(0.9)
+
         self.clouds = Clouds(self.assets['clouds'], count=8)
         
         #self.player = pygame.sprite.GroupSingle()
@@ -150,9 +176,20 @@ class Game():
         self.transistion = -30 # 
     
     def run(self):
+        # pygame.mixer.music.load('data/music.wav')
+        # pygame.mixer.music.set_volume(0.5)
+        # pygame.mixer.music.play(-1) # -1 = loop forever
+        
+        self.sfx['ambience'].play(-1)
+        
         while True:
-            self.display.fill((14, 219, 248))
-            #self.display.blit(self.assets['background'], (0, 0))
+            self.display.fill((0, 0, 0, 0)) # (r,g,b,alpha) - transparent display to blit surfaces to
+            
+            # background (set to base colour then overlay image - in center of screen)
+            self.display_2.fill((14, 219, 248))
+            w, h = self.assets['background'].get_size()
+            sw, sh = self.display.get_size()
+            self.display_2.blit(self.assets['background'], ((int(sw - sh/h * w) / 2), 0))
             
             self.screenshake = max(0, self.screenshake - 1) # screenshake timer
             
@@ -198,7 +235,7 @@ class Game():
                                                    frame=random.randint(0, 20)))
             
             self.clouds.update()
-            self.clouds.render(self.display, offset=render_scroll)
+            self.clouds.render(self.display_2, offset=render_scroll)
             
             self.tilemap.render(self.display, offset=render_scroll)
             
@@ -240,6 +277,7 @@ class Game():
                         self.projectiles.remove(projectile)
                         # damage player when hit
                         self.dead += 1
+                        self.sfx['hit'].play() # default = play only once
                         # shake screen when player is hit
                         self.screenshake = max(16, self.screenshake)
                         # sparks + particles when projectile hits the player
@@ -259,14 +297,26 @@ class Game():
                 spark.render(self.display, offset=render_scroll)
                 if kill:
                     self.sparks.remove(spark)
-            
+                        
             for particle in self.particles.copy():
                 kill = particle.update()
-                particle.render(self.display, offset=render_scroll)
+                particle.render(self.display_2, offset=render_scroll)
                 if particle.type == 'leaf':
                     particle.pos[0] += math.sin(particle.animation.frame * 0.035) * 0.3
                 if kill:
                     self.particles.remove(particle)
+
+            # create sillhouette
+            display_mask = pygame.mask.from_surface(self.display)
+            display_sillhouette = display_mask.to_surface(setcolor=(0, 0, 0, 180),
+                                                          unsetcolor=(0, 0, 0, 0))
+            # render sillouette 4 times, offset in each direction to create outline
+            outline_thickness = 1
+            for offset in [(-outline_thickness, 0), (outline_thickness, 0), 
+                           (0, -outline_thickness), (0, outline_thickness)]:
+                self.display_2.blit(display_sillhouette, offset)
+                
+            # TODO: Look into using masks for pixel-perfect collisions
             
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -274,19 +324,26 @@ class Game():
                     sys.exit()
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_LEFT:
+                        self.sfx['walk'].play()
                         self.movement[0] = True
                     if event.key == pygame.K_RIGHT:
+                        self.sfx['walk'].play()
                         self.movement[1] = True
                     if event.key == pygame.K_UP:
-                        self.player.jump()
+                        if self.player.jump():
+                            #if self.player.air_time == 0: # TODO: fix double jump sound
+                            self.sfx['jump'].play() # default = play only once
                     if event.key == pygame.K_x:
                         self.player.dash()
                 
                 if event.type == pygame.KEYUP:
                     if event.key == pygame.K_LEFT:
+                        self.sfx['walk'].stop()
                         self.movement[0] = False
                     if event.key == pygame.K_RIGHT:
+                        self.sfx['walk'].stop()
                         self.movement[1] = False
+                        
             # movement adds up both inputs if two keys pressed
             # self.img_pos[1] += self.movement[1] - self.movement[0] * self.movement_speed 
             
@@ -301,11 +358,14 @@ class Game():
                 transistion_surf.set_colorkey((255, 255, 255)) # set white to transparent
                 self.display.blit(transistion_surf, (0, 0))
             
+            # render display back on top of sillhouette
+            self.display_2.blit(self.display, (0, 0))
+            
             # random shake in x, y from 0 pixels up to screenshake value
             screenshake_offset = (random.random() * self.screenshake - self.screenshake / 2,
                                   random.random() * self.screenshake - self.screenshake / 2)
             
-            self.screen.blit(pygame.transform.scale(self.display, self.screen.get_size()), 
+            self.screen.blit(pygame.transform.scale(self.display_2, self.screen.get_size()), 
                              screenshake_offset)
             pygame.display.update()
             self.clock.tick(self.fps)
@@ -589,24 +649,24 @@ class Game():
 #         self.movement()
 #         # self.destroy()
         
-class Ground():
-    def __init__(self, game):
-        super().__init__()
-        self.tile_size = 10
-        self.cols = game.display.get_width() // self.tile_size
-        self.rows = int(game.display.get_height() - game.ground) // self.tile_size
-        self.grid = np.ones((self.cols, self.rows))
-        self.colour = 'darkorange4' # TODO: replace with texture?
+# class Ground():
+#     def __init__(self, game):
+#         super().__init__()
+#         self.tile_size = 10
+#         self.cols = game.display.get_width() // self.tile_size
+#         self.rows = int(game.display.get_height() - game.ground) // self.tile_size
+#         self.grid = np.ones((self.cols, self.rows))
+#         self.colour = 'darkorange4' # TODO: replace with texture?
     
-    def update_grid(self, new_grid):
-        self.grid = new_grid
+#     def update_grid(self, new_grid):
+#         self.grid = new_grid
         
-    def draw_grid(self):
-        for i, x in enumerate(range(0, game.display.get_width(), self.tile_size)):
-            for j, y in enumerate(range(0, int(game.display.get_height() - game.ground), self.tile_size)):
-                if self.grid[i,j] == 1:
-                    pygame.draw.rect(game.display, self.colour, 
-                                     [x, y + game.ground, self.tile_size, self.tile_size])
+#     def draw_grid(self):
+#         for i, x in enumerate(range(0, game.display.get_width(), self.tile_size)):
+#             for j, y in enumerate(range(0, int(game.display.get_height() - game.ground), self.tile_size)):
+#                 if self.grid[i,j] == 1:
+#                     pygame.draw.rect(game.display, self.colour, 
+#                                      [x, y + game.ground, self.tile_size, self.tile_size])
         
 # def collision_sprite():
 #     for enemy in pygame.sprite.Group.sprites(game.enemies):
