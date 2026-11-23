@@ -26,4 +26,3 @@ class Particle:
                   (self.pos[0] - offset[0] - img.get_width() // 2, 
                    self.pos[1] - offset[1] - img.get_height() // 2))
         
-        
