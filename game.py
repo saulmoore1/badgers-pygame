@@ -59,10 +59,11 @@ class Game():
         self.movement = [False, False, False, False]
         
         # self.rect = self.screen.get_rect()
-        # self.active = False
+        self.active = False
+        self.game_time = 0
+
         # self.delta = 0
         # self.start_time = 0
-        # self.game_time = 0
         self.ground = int(0.6 * self.display.get_height())
 
         self.assets = {
@@ -171,144 +172,176 @@ class Game():
         # pygame.mixer.music.load('data/music.wav')
         # pygame.mixer.music.set_volume(0.5)
         # pygame.mixer.music.play(-1) # -1 = loop forever
-        
-        self.sfx['ambience'].play(-1)
-        
-        while True:
-            self.display.fill((0, 0, 0, 0)) # (r,g,b,alpha) - transparent display to blit surfaces to
-            
-            # background (set to base colour then overlay image - in center of screen)
-            self.display_2.fill((14, 219, 248))
-            w, h = self.assets['background'].get_size()
-            sw, sh = self.display.get_size()
-            self.display_2.blit(self.assets['background'], ((int(sw - sh/h * w) / 2), 0))
-            
-            self.screenshake = max(0, self.screenshake - 1) # screenshake timer
-            
-            # if all of the enemies are dead, transistion level
-            if not len(self.enemies):
-                self.transistion += 1
-                if self.transistion > 30:
-                    # load next level if exists (check n levels in data/maps dir)
-                    self.level = min(self.level + 1, len(os.listdir('data/maps/')) - 1)
-                    self.load_level(self.level) # load level during full blackscreen
-            if self.transistion < 0:
-                self.transistion += 1
-            
-            # increment damage counter if player hit during frame
-            if self.dead:
-                self.dead += 1
-                if self.dead >= 10:
-                    # if dead do not transisiton to next level (do not exceed 30)
-                    self.transistion = min(30, self.transistion + 1)
-                if self.dead > 40:
-                    self.load_level(self.level)
-            
-            # pan camera centered on player
-            self.scroll[0] += (self.player.rect().centerx - 
-                               self.display.get_width() / 2 - 
-                               self.scroll[0]) / 30
-            self.scroll[1] += (self.player.rect().centery - 
-                               self.display.get_height() / 2 - 
-                               self.scroll[1]) / 30
-            render_scroll = (int(self.scroll[0]), int(self.scroll[1]))
-            
-            for rect in self.leaf_spawners:
-                # check if random number is less than pixel area of our rectangle
-                # spawn-rate proportional to the amount of pixels that the hitbox covers
-                # eg. bigger trees spawn more leaves
-                if random.random() * 49999 < rect.width * rect.height:
-                    pos = (rect.x + random.random() * rect.width,
-                           rect.y + random.random() * rect.height)
-                    self.particles.append(Particle(self, 
-                                                   'leaf', 
-                                                   pos, 
-                                                   velocity=[-0.1, 0.3], 
-                                                   frame=random.randint(0, 20)))
-            
-            self.clouds.update()
-            self.clouds.render(self.display_2, offset=render_scroll)
-            
-            self.tilemap.render(self.display, offset=render_scroll)
-            
-            for enemy in self.enemies.copy():
-                kill = enemy.update(self.tilemap, (0, 0)) # default no movement
-                enemy.render(self.display, offset=render_scroll)
-                if kill:
-                    self.enemies.remove(enemy)
                 
-            if not self.dead:
-                self.player.update(self.tilemap, (self.movement[1] - self.movement[0], 0))
-                # self.player.update(self.tilemap, (self.movement[1] - self.movement[0],
-                #                                   self.movement[3] - self.movement[2]))
-                self.player.render(self.display, offset=render_scroll)
-                #print(self.tilemap.physics_rects_around(self.player.pos))
-            
-            # [[x, y], direction, timer]
-            for projectile in self.projectiles.copy():
-                projectile[0][0] += projectile[1] # x pos
-                projectile[2] += 1 # timer
-                img = self.assets['bullet']
-                self.display.blit(img, 
-                                  (projectile[0][0] - img.get_width() / 2 - render_scroll[0], 
-                                   projectile[0][1] - img.get_height() / 2 - render_scroll[1]))
-                # make projectile disappear when it hits a wall
-                if self.tilemap.solid_check(projectile[0]):
-                    self.projectiles.remove(projectile)
-                    # sparks when projectile hits wall 
-                    for i in range(4):
-                        self.sparks.append(Spark(projectile[0], # last projectile position
-                                                 # sparks left only if projectile is going right, and vice versa
-                                                 random.random() - 0.5 + (math.pi if projectile[1] > 0 else 0),
-                                                 2 + random.random())) # random speed
-                # projectile timeout after 6 seconds
-                elif projectile[2] > 360:
-                    self.projectiles.remove(projectile)
-                # check if bullet hits the player (if not dashing)
-                # player is invincible while dashing
-                elif abs(self.player.dashing) < 50:
-                    if self.player.rect().collidepoint(projectile[0]):
-                        self.projectiles.remove(projectile)
-                        # damage player when hit
-                        self.dead += 1
-                        self.sfx['hit'].play() # default = play only once
-                        # shake screen when player is hit
-                        self.screenshake = max(16, self.screenshake)
-                        # sparks + particles when projectile hits the player
-                        for i in range(30):
-                            angle = random.random() * math.pi * 2 # random direction in a full circle
-                            speed = random.random() * 5
-                            self.sparks.append(Spark(self.player.rect().center, angle, 2 + random.random()))
-                            self.particles.append(Particle(self, 
-                                                           'woosh', 
-                                                           self.player.rect().center,
-                                                           velocity=[math.cos(angle + math.pi) * speed * 0.5,
-                                                                     math.sin(angle + math.pi) * speed * 0.5],
-                                                           frame=random.randint(0, 7)))
-                        
-            for spark in self.sparks.copy():
-                kill = spark.update()
-                spark.render(self.display, offset=render_scroll)
-                if kill:
-                    self.sparks.remove(spark)
-                        
-            for particle in self.particles.copy():
-                kill = particle.update()
-                particle.render(self.display_2, offset=render_scroll)
-                if particle.type == 'leaf':
-                    particle.pos[0] += math.sin(particle.animation.frame * 0.035) * 0.3
-                if kill:
-                    self.particles.remove(particle)
+        self.sfx['ambience'].play(-1)
+
+        while True:
+            if self.active:
+                self.display.fill((0, 0, 0, 0)) # (r,g,b,alpha) - transparent display to blit surfaces to
+                
+                # background (set to base colour then overlay image - in center of screen)
+                self.display_2.fill((14, 219, 248))
+                w, h = self.assets['background'].get_size()
+                sw, sh = self.display.get_size()
+                self.display_2.blit(self.assets['background'], ((int(sw - sh/h * w) / 2), 0))
+                
+                self.screenshake = max(0, self.screenshake - 1) # screenshake timer
+                
+                # if all of the enemies are dead, transistion level
+                if not len(self.enemies):
+                    self.transistion += 1
+                    if self.transistion > 30:
+                        # load next level if exists (check n levels in data/maps dir)
+                        self.level = min(self.level + 1, len(os.listdir('data/maps/')) - 1)
+                        self.load_level(self.level) # load level during full blackscreen
+                if self.transistion < 0:
+                    self.transistion += 1
+                
+                # increment damage counter if player hit during frame
+                if self.dead:
+                    self.dead += 1
+                    if self.dead >= 10:
+                        # if dead do not transisiton to next level (do not exceed 30)
+                        self.transistion = min(30, self.transistion + 1)
+                    if self.dead > 40:
+                        self.load_level(self.level)
+                
+                # pan camera centered on player
+                self.scroll[0] += (self.player.rect().centerx - 
+                                   self.display.get_width() / 2 - 
+                                   self.scroll[0]) / 30
+                self.scroll[1] += (self.player.rect().centery - 
+                                   self.display.get_height() / 2 - 
+                                   self.scroll[1]) / 30
+                render_scroll = (int(self.scroll[0]), int(self.scroll[1]))
+                
+                for rect in self.leaf_spawners:
+                    # check if random number is less than pixel area of our rectangle
+                    # spawn-rate proportional to the amount of pixels that the hitbox covers
+                    # eg. bigger trees spawn more leaves
+                    if random.random() * 49999 < rect.width * rect.height:
+                        pos = (rect.x + random.random() * rect.width,
+                               rect.y + random.random() * rect.height)
+                        self.particles.append(Particle(self, 
+                                                       'leaf', 
+                                                       pos, 
+                                                       velocity=[-0.1, 0.3], 
+                                                       frame=random.randint(0, 20)))
+                
+                self.clouds.update()
+                self.clouds.render(self.display_2, offset=render_scroll)
+                
+                self.tilemap.render(self.display, offset=render_scroll)
+                
+                for enemy in self.enemies.copy():
+                    kill = enemy.update(self.tilemap, (0, 0)) # default no movement
+                    enemy.render(self.display, offset=render_scroll)
+                    if kill:
+                        self.enemies.remove(enemy)
                     
-            # create sillhouette
-            display_mask = pygame.mask.from_surface(self.display)
-            display_sillhouette = display_mask.to_surface(setcolor=(0, 0, 0, 180),
-                                                          unsetcolor=(0, 0, 0, 0))
-            # render sillouette 4 times, offset in each direction to create outline
-            outline_thickness = 1
-            for offset in [(-outline_thickness, 0), (outline_thickness, 0), 
-                           (0, -outline_thickness), (0, outline_thickness)]:
-                self.display_2.blit(display_sillhouette, offset)
+                if not self.dead:
+                    self.player.update(self.tilemap, (self.movement[1] - self.movement[0], 0))
+                    # self.player.update(self.tilemap, (self.movement[1] - self.movement[0],
+                    #                                   self.movement[3] - self.movement[2]))
+                    self.player.render(self.display, offset=render_scroll)
+                    #print(self.tilemap.physics_rects_around(self.player.pos))
+                    
+                # TODO: Save option in game to save game state (tilemap, player pos, enemy pos+spawn, etc)
+                
+                # [[x, y], direction, timer]
+                for projectile in self.projectiles.copy():
+                    projectile[0][0] += projectile[1] # x pos
+                    projectile[2] += 1 # timer
+                    img = self.assets['bullet']
+                    self.display.blit(img, 
+                                      (projectile[0][0] - img.get_width() / 2 - render_scroll[0], 
+                                       projectile[0][1] - img.get_height() / 2 - render_scroll[1]))
+                    # make projectile disappear when it hits a wall
+                    if self.tilemap.solid_check(projectile[0]):
+                        self.projectiles.remove(projectile)
+                        # sparks when projectile hits wall 
+                        for i in range(4):
+                            self.sparks.append(Spark(projectile[0], # last projectile position
+                                                     # sparks left only if projectile is going right, and vice versa
+                                                     random.random() - 0.5 + (math.pi if projectile[1] > 0 else 0),
+                                                     2 + random.random())) # random speed
+                    # projectile timeout after 6 seconds
+                    elif projectile[2] > 360:
+                        self.projectiles.remove(projectile)
+                    # check if bullet hits the player (if not dashing)
+                    # player is invincible while dashing
+                    elif abs(self.player.dashing) < 50:
+                        if self.player.rect().collidepoint(projectile[0]):
+                            self.projectiles.remove(projectile)
+                            # damage player when hit
+                            self.dead += 1
+                            self.sfx['hit'].play() # default = play only once
+                            # shake screen when player is hit
+                            self.screenshake = max(16, self.screenshake)
+                            # sparks + particles when projectile hits the player
+                            for i in range(30):
+                                angle = random.random() * math.pi * 2 # random direction in a full circle
+                                speed = random.random() * 5
+                                self.sparks.append(Spark(self.player.rect().center, angle, 2 + random.random()))
+                                self.particles.append(Particle(self, 
+                                                               'woosh', 
+                                                               self.player.rect().center,
+                                                               velocity=[math.cos(angle + math.pi) * speed * 0.5,
+                                                                         math.sin(angle + math.pi) * speed * 0.5],
+                                                               frame=random.randint(0, 7)))
+                            
+                for spark in self.sparks.copy():
+                    kill = spark.update()
+                    spark.render(self.display, offset=render_scroll)
+                    if kill:
+                        self.sparks.remove(spark)
+                            
+                for particle in self.particles.copy():
+                    kill = particle.update()
+                    particle.render(self.display_2, offset=render_scroll)
+                    if particle.type == 'leaf':
+                        particle.pos[0] += math.sin(particle.animation.frame * 0.035) * 0.3
+                    if kill:
+                        self.particles.remove(particle)
+                        
+                # create sillhouette
+                display_mask = pygame.mask.from_surface(self.display)
+                display_sillhouette = display_mask.to_surface(setcolor=(0, 0, 0, 180),
+                                                              unsetcolor=(0, 0, 0, 0))
+                # render sillouette 4 times, offset in each direction to create outline
+                outline_thickness = 1
+                for offset in [(-outline_thickness, 0), (outline_thickness, 0), 
+                               (0, -outline_thickness), (0, outline_thickness)]:
+                    self.display_2.blit(display_sillhouette, offset)
+
+                if self.transistion:
+                    transistion_surf = pygame.Surface(self.display.get_size())
+                    # radius of circle shrinks then expands to screen size
+                    pygame.draw.circle(transistion_surf, 
+                                       (255, 255, 255), # colour white, but will be set to transparent
+                                       (self.display.get_width() // 2,
+                                        self.display.get_height() // 2), 
+                                       (30 - abs(self.transistion)) * self.display.get_width() // 30) # radius
+                    transistion_surf.set_colorkey((255, 255, 255)) # set white to transparent
+                    self.display.blit(transistion_surf, (0, 0))
+                
+                # render display back on top of sillhouette
+                self.display_2.blit(self.display, (0, 0))
+                
+                # random shake in x, y from 0 pixels up to screenshake value
+                screenshake_offset = (random.random() * self.screenshake - self.screenshake / 2,
+                                      random.random() * self.screenshake - self.screenshake / 2)
+                
+                self.screen.blit(pygame.transform.scale(self.display_2, self.screen.get_size()), 
+                                 screenshake_offset)
+            
+            elif not self.active:
+                self.screen.fill("springgreen3")
+                
+                intro_img_rect = self.assets['player/idle'].images[0]
+                self.screen.blit(intro_img_rect, (0, 0))
+                
+                
                 
             # TODO: Look into using masks for pixel-perfect collisions
             
@@ -316,6 +349,16 @@ class Game():
                 if event.type == pygame.QUIT:
                     pygame.QUIT
                     sys.exit()
+                    
+                # click on badger icon to play the game
+                if not self.active:
+                    if event.type == pygame.MOUSEMOTION:
+                        if intro_img_rect.get_rect().collidepoint(event.pos):
+                            # if event.type == pygame.MOUSEBUTTONDOWN:
+                            #     if event.button == 3:
+                            #         print("Hovering over badger + mouse pressed")
+                            self.active = True
+
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_LEFT:
                         self.sfx['walk'].play()
@@ -323,10 +366,10 @@ class Game():
                     if event.key == pygame.K_RIGHT:
                         self.sfx['walk'].play()
                         self.movement[1] = True
-                    # if event.key == pygame.K_UP:
-                    #     self.movement[2] = True
-                    # if event.key == pygame.K_DOWN:
-                    #     self.movement[3] = True
+                    if event.key == pygame.K_UP:
+                        self.movement[2] = True
+                    if event.key == pygame.K_DOWN:
+                        self.movement[3] = True
                     if event.key == pygame.K_SPACE:
                         if self.player.jump():
                             #if self.player.air_time == 0: # TODO: fix double jump sound
@@ -343,33 +386,13 @@ class Game():
                     if event.key == pygame.K_RIGHT:
                         self.sfx['walk'].stop()
                         self.movement[1] = False
-                    # if event.key == pygame.K_UP:
-                    #     self.movement[2] = False
-                    # if event.key == pygame.K_DOWN:
-                    #     self.movement[3] = False                    
+                    if event.key == pygame.K_UP:
+                        self.movement[2] = False
+                    if event.key == pygame.K_DOWN:
+                        self.movement[3] = False                    
                     if event.key == pygame.K_d:
                         self.player.digging = False
             
-            if self.transistion:
-                transistion_surf = pygame.Surface(self.display.get_size())
-                # radius of circle shrinks then expands to screen size
-                pygame.draw.circle(transistion_surf, 
-                                   (255, 255, 255), # colour white, but will be set to transparent
-                                   (self.display.get_width() // 2,
-                                    self.display.get_height() // 2), 
-                                   (30 - abs(self.transistion)) * self.display.get_width() // 30) # radius
-                transistion_surf.set_colorkey((255, 255, 255)) # set white to transparent
-                self.display.blit(transistion_surf, (0, 0))
-            
-            # render display back on top of sillhouette
-            self.display_2.blit(self.display, (0, 0))
-            
-            # random shake in x, y from 0 pixels up to screenshake value
-            screenshake_offset = (random.random() * self.screenshake - self.screenshake / 2,
-                                  random.random() * self.screenshake - self.screenshake / 2)
-            
-            self.screen.blit(pygame.transform.scale(self.display_2, self.screen.get_size()), 
-                             screenshake_offset)
             pygame.display.update()
             self.clock.tick(self.fps)
 
