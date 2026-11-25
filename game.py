@@ -71,6 +71,7 @@ class Game():
             'mud': load_images('tiles/mud', scale=IMG_SCALE),
             'foliage': load_images('tiles/foliage', scale=IMG_SCALE),
             'background': load_image('background/0.png'),
+            'startscreen': load_image('entities/badger/idle/Badger_5.png', scale=0.2),
             'clouds': load_images('clouds', scale=0.1),
             'enemy/idle': Animation(load_images('entities/enemy/idle', scale=IMG_SCALE), img_dur=15),
             'enemy/walk': Animation(load_images('entities/enemy/walk', scale=IMG_SCALE), img_dur=4),
@@ -126,15 +127,10 @@ class Game():
         self.screenshake = 0
                 
         # self.max_enemies = 5
-        
-        # #TODO: intro screen
-        # self.title_font = pygame.font.Font(DIRPATH + '/font/Ulong.ttf', 80)
-        # self.stats_font = pygame.font.Font(DIRPATH + '/font/Ulong.ttf', 40)
-        
-        # self.intro_img = load_frames(DIRPATH + '/graphics/badger/walk/', 
-        #                              scale_by=0.25)[0]
-        # self.intro_img_rect = self.intro_img.get_rect(center=(int(width/2),int(height/2)))
-                        
+
+        self.large_font = pygame.font.Font('data/font/Ulong.ttf', 60)
+        self.small_font = pygame.font.Font('data/font/Ulong.ttf', 40)
+                                
     def load_level(self, map_id):
         self.tilemap.load('data/maps/' + str(map_id) + '.json')
         
@@ -272,6 +268,7 @@ class Game():
                     # player is invincible while dashing
                     elif abs(self.player.dashing) < 50:
                         if self.player.rect().collidepoint(projectile[0]):
+                            # TODO: Look into using masks for pixel-perfect collisions
                             self.projectiles.remove(projectile)
                             # damage player when hit
                             self.dead += 1
@@ -338,13 +335,23 @@ class Game():
             elif not self.active:
                 self.screen.fill("springgreen3")
                 
-                intro_img_rect = self.assets['player/idle'].images[0]
-                self.screen.blit(intro_img_rect, (0, 0))
+                intro_img = self.assets['startscreen']
+                intro_img_rect = intro_img.get_rect()
+                intro_img_rect.center = (self.screen.get_width() // 2, 
+                                         self.screen.get_height() // 2)
+                self.screen.blit(intro_img, intro_img_rect)
                 
+                title_large_text_surf = self.large_font.render("Badger Game", False, (64,64,64))
+                title_large_text_rect = title_large_text_surf.get_rect(center=(intro_img_rect.centerx,
+                                                                               intro_img_rect.bottom + 40))
+                self.screen.blit(title_large_text_surf, title_large_text_rect)
                 
+                title_small_text_surf = self.small_font.render("(Click to play)", False, (64,64,64))
+                title_small_text_rect = title_small_text_surf.get_rect(center=(title_large_text_rect.centerx,
+                                                                               title_large_text_rect.bottom + 40))
+                self.screen.blit(title_small_text_surf, title_small_text_rect)
+
                 
-            # TODO: Look into using masks for pixel-perfect collisions
-            
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     pygame.QUIT
@@ -352,11 +359,8 @@ class Game():
                     
                 # click on badger icon to play the game
                 if not self.active:
-                    if event.type == pygame.MOUSEMOTION:
-                        if intro_img_rect.get_rect().collidepoint(event.pos):
-                            # if event.type == pygame.MOUSEBUTTONDOWN:
-                            #     if event.button == 3:
-                            #         print("Hovering over badger + mouse pressed")
+                    if event.type == pygame.MOUSEBUTTONUP:
+                        if intro_img_rect.collidepoint(event.pos):
                             self.active = True
 
                 if event.type == pygame.KEYDOWN:
@@ -397,8 +401,7 @@ class Game():
             self.clock.tick(self.fps)
 
 #     # intro screen surfaces to display
-#     title_text_surf = self.title_font.render("Badger Game", False, (64,64,64))
-#     title_text_rect = title_text_surf.get_rect(center=(int(self.width/2), 80))
+
 #     dead_text_surf = self.title_font.render("You Died!", False, (64,64,64))
 #     dead_text_rect = dead_text_surf.get_rect(midbottom=(int(self.width/2), self.height-100))
 #     start_text_surf = self.stats_font.render("(Press space to play)", False, (64,64,64))
